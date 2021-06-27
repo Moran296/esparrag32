@@ -1,40 +1,26 @@
 #include "esparrag_common.h"
 #include "etl/enum_type.h"
+#include "nvs_flash.h"
 #include "esparrag_log.h"
-#include "database.h"
+#include "esparrag_database.h"
+#include "esparrag_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 extern "C" void app_main()
 {
+
+    nvs_flash_erase();
     ConfigDB db;
     db.Init();
+    Wifi wifi(db);
+    wifi.Init();
 
-    const char *ap_ssid = nullptr;
-    db.Get(CONFIG_ID::AP_SSID, ap_ssid);
-    if (ap_ssid == nullptr)
-        ESPARRAG_LOG_INFO("huston we have a problem");
-    else
-        ESPARRAG_LOG_INFO("ap ssid %s", ap_ssid);
-    db.Get(CONFIG_ID::AP_PASSWORD, ap_ssid);
-    if (ap_ssid == nullptr)
-        ESPARRAG_LOG_INFO("huston we have a problem");
-    else
-        ESPARRAG_LOG_INFO("ap pass %s", ap_ssid);
+    vTaskDelay(15_sec);
 
-    const char g[] = "whhop whhop";
-    eResult res = db.Set(CONFIG_ID::AP_SSID, g);
-    if (res != eResult::SUCCESS)
-        ESPARRAG_LOG_INFO("couldnt write");
-    res = db.Set(CONFIG_ID::AP_PASSWORD, g);
-    if (res != eResult::SUCCESS)
-        ESPARRAG_LOG_INFO("couldnt write");
+    db.Set(CONFIG_ID::STA_SSID, "Rozen_2");
+    db.Set(CONFIG_ID::STA_PASSWORD, "0545525855");
     db.Commit();
-    db.Get(CONFIG_ID::AP_SSID, ap_ssid);
-    if (ap_ssid == nullptr)
-        ESPARRAG_LOG_INFO("huston we have a problem");
-    else
-        ESPARRAG_LOG_INFO("ap ssid %s", ap_ssid);
 
     vTaskDelay(100000000);
 }

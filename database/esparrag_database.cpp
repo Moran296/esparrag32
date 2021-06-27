@@ -1,7 +1,4 @@
-#include "database.h"
-#include "esp_log.h"
-
-#define TAG "DB"
+#include "esparrag_database.h"
 #include "esparrag_log.h"
 
 static constexpr const char *db_nvs_namespace = "DB_namespace";
@@ -32,25 +29,6 @@ eResult ConfigDB::Init(bool reset)
     return res;
 }
 
-template <class VAL_T>
-eResult ConfigDB::Set(CONFIG_ID id, VAL_T val)
-{
-    ESPARRAG_ASSERT(m_isInitialized);
-    eResult res = eResult::SUCCESS;
-    bool isChanged = false;
-    res = m_configs[id]->set(val, isChanged);
-    if (res != eResult::SUCCESS)
-    {
-        ESPARRAG_LOG_ERROR("set config failed");
-        return res;
-    }
-
-    if (isChanged)
-        m_dirty_list.set(id);
-
-    return eResult::SUCCESS;
-}
-
 eResult ConfigDB::Set(CONFIG_ID id, const char *val)
 {
     ESPARRAG_ASSERT(m_isInitialized);
@@ -67,13 +45,6 @@ eResult ConfigDB::Set(CONFIG_ID id, const char *val)
         m_dirty_list.set(id);
 
     return eResult::SUCCESS;
-}
-
-template <class VAL_T>
-void ConfigDB::Get(CONFIG_ID id, VAL_T &val) const
-{
-    ESPARRAG_ASSERT(m_isInitialized);
-    return m_configs[id]->get(val);
 }
 
 void ConfigDB::Get(CONFIG_ID id, const char *&val) const
@@ -99,8 +70,7 @@ void ConfigDB::Commit()
     }
 
     m_nvs.Commit();
-    notify_observers(m_dirty_list);
-    m_dirty_list.reset();
+    notify_subscribers();
 }
 
 void ConfigDB::Reset()
@@ -118,6 +88,26 @@ void ConfigDB::Reset()
     }
 
     Commit();
+}
+
+void ConfigDB::Subscribe(dirty_list_t configs, config_change_cb CB)
+{
+    ESPARRAG_ASSERT(m_subscribers.size() != m_subscribers.capacity());
+    m_subscribers.push_back(std::make_pair(configs, CB));
+}
+
+void ConfigDB::notify_subscribers()
+{
+    for (auto &[list, cb] : m_subscribers)
+    {
+        dirty_list_t intersected_bits = m_dirty_list & list;
+        if (intersected_bits.any())
+        {
+            cb(m_dirty_list);
+        }
+    }
+
+    m_dirty_list.reset();
 }
 
 const char *ConfigDB::configKey(size_t id)

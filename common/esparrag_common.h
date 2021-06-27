@@ -1,6 +1,7 @@
 #ifndef ESPARRAGOS_COMMON__
 #define ESPARRAGOS_COMMON__
 #include "stdint.h"
+#include "freertos/FreeRTOS.h"
 #include "esp_log.h"
 
 #define ESPARRAG_ASSERT(X)                                                                    \
@@ -11,8 +12,20 @@
             ;                                                                                 \
     }
 
-#define BIT(X) (1LL << X)
 #define ETL_ENUM_DEFAULT(ID) ETL_ENUM_TYPE(ID, #ID)
+
+inline TickType_t operator"" _ms(unsigned long long milli)
+{
+    return pdMS_TO_TICKS(milli);
+}
+inline TickType_t operator"" _sec(unsigned long long sec)
+{
+    return sec * 1000_ms;
+}
+inline TickType_t operator"" _min(unsigned long long min)
+{
+    return min * 60_sec;
+}
 
 enum class eResult : uint8_t
 {
