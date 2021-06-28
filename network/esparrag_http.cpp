@@ -4,7 +4,6 @@
 #include "esparrag_wifi.h"
 
 #define HTTP_REQUEST_CONTENT_MAX_SIZE 512
-#define JSON_CONTENT_TYPE "application/json"
 #define DATA_FIELD "\"body\""
 
 cJSON *HttpServer::parseBody(const char *body)
@@ -88,17 +87,19 @@ void HttpServer::sendResponse(httpd_req_t *esp_request, Response &response)
     httpd_resp_set_hdr(esp_request, "Access-Control-Max-Age", "10000");
     httpd_resp_set_hdr(esp_request, "Access-Control-Allow-Methods", "POST,GET,DELETE,OPTIONS");
     httpd_resp_set_hdr(esp_request, "Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-    httpd_resp_set_type(esp_request, JSON_CONTENT_TYPE);
+    httpd_resp_set_type(esp_request, response.m_format.c_str());
     httpd_resp_set_status(esp_request, response.m_code.c_str());
 
-    char *responseString = cJSON_Print(response.m_response);
+    bool sendJson = response.m_format == Response::FORMAT::JSON;
+    const char *responseString = sendJson == true ? cJSON_Print(response.m_json) : response.m_string;
     int bytes = httpd_resp_send(esp_request, responseString, HTTPD_RESP_USE_STRLEN);
     if (bytes < 0)
     {
         ESPARRAG_LOG_ERROR("error sending response, err %d", bytes);
     }
 
-    cJSON_free(responseString);
+    if (sendJson)
+        cJSON_free((void *)responseString);
 }
 
 HttpServer::HttpServer(ConfigDB &db) : m_db(db),
@@ -107,7 +108,7 @@ HttpServer::HttpServer(ConfigDB &db) : m_db(db),
 eResult HttpServer::Init()
 {
     auto changeCB = config_change_cb::create<HttpServer, &HttpServer::dbConfigChange>(*this);
-    m_db.Subscribe<CONFIG_ID::WIFI_STATUS> (changeCB);
+    m_db.Subscribe<CONFIG_ID::WIFI_STATE>(changeCB);
 
     m_config = HTTPD_DEFAULT_CONFIG();
     m_config.uri_match_fn = httpd_uri_match_wildcard;
@@ -115,10 +116,10 @@ eResult HttpServer::Init()
     ESPARRAG_LOG_INFO("http server initialized");
 
     uint8_t enumGetter = 0;
-    m_db.Get(CONFIG_ID::WIFI_STATUS, enumGetter);
-    WIFI_STATUS mode(enumGetter);
+    m_db.Get(CONFIG_ID::WIFI_STATE, enumGetter);
+    WIFI_STATE mode(enumGetter);
 
-    if (mode != WIFI_STATUS::OFFLINE && !m_isRunning)
+    if (mode != WIFI_STATE::OFFLINE && !m_isRunning)
     {
         runServer();
     }
@@ -248,10 +249,10 @@ eResult HttpServer::stopServer()
 void HttpServer::dbConfigChange(const dirty_list_t &dirty_list)
 {
     uint8_t getter = 0;
-    m_db.Get(CONFIG_ID::WIFI_STATUS, getter);
-    WIFI_STATUS mode(getter);
+    m_db.Get(CONFIG_ID::WIFI_STATE, getter);
+    WIFI_STATE mode(getter);
 
-    if (mode != WIFI_STATUS::OFFLINE && !m_isRunning)
+    if (mode != WIFI_STATE::OFFLINE && !m_isRunning)
     {
         runServer();
     }

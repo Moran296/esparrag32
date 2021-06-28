@@ -59,12 +59,12 @@ eResult Wifi::provision()
     ESPARRAG_LOG_INFO("provisioning...");
 
     uint8_t enumGetter = 0;
-    m_db.Get(CONFIG_ID::WIFI_STATUS, enumGetter);
-    WIFI_STATUS mode(enumGetter);
-    if (mode == WIFI_STATUS::STA && internet_connected)
+    m_db.Get(CONFIG_ID::WIFI_STATE, enumGetter);
+    WIFI_STATE mode(enumGetter);
+    if (mode == WIFI_STATE::STA && internet_connected)
         return eResult::SUCCESS;
 
-    if (mode == WIFI_STATUS::STA)
+    if (mode == WIFI_STATE::STA)
     {
         sta_connect();
     }
@@ -76,7 +76,7 @@ eResult Wifi::provision()
     m_db.Get(CONFIG_ID::STA_PASSWORD, sta_password);
     if (ValidityCheck(sta_ssid, sta_password) == true)
     {
-        if (mode == WIFI_STATUS::AP)
+        if (mode == WIFI_STATE::AP)
         {
             ESPARRAG_LOG_INFO("disconnect");
             disconnect();
@@ -86,7 +86,7 @@ eResult Wifi::provision()
         sta_start(sta_ssid, sta_password);
     }
 
-    else if (mode == WIFI_STATUS::OFFLINE)
+    else if (mode == WIFI_STATE::OFFLINE)
     {
         ESPARRAG_LOG_INFO("starting ap");
         ap_start();
@@ -162,7 +162,7 @@ void Wifi::disconnect()
     esp_wifi_disconnect();
     esp_wifi_stop();
     //should we switch to offline?
-    m_db.Set(CONFIG_ID::WIFI_STATUS, (uint8_t)WIFI_STATUS::OFFLINE);
+    m_db.Set(CONFIG_ID::WIFI_STATE, (uint8_t)WIFI_STATE::OFFLINE);
 }
 
 eResult Wifi::ap_start()
@@ -235,7 +235,7 @@ void Wifi::eventHandler(void *event_handler_arg,
         {
             ESPARRAG_LOG_INFO("STA CONNECTED");
             wifi->internet_connected = true;
-            wifi->m_db.Set(CONFIG_ID::WIFI_STATUS, (uint8_t)WIFI_STATUS::STA);
+            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, (uint8_t)WIFI_STATE::STA);
             wifi->m_db.Commit();
             retries = 0;
         }
@@ -243,7 +243,7 @@ void Wifi::eventHandler(void *event_handler_arg,
         {
             wifi->internet_connected = false;
             ESPARRAG_LOG_INFO("STA DISCONNECTED, reason = %d", ((wifi_event_sta_disconnected_t *)event_data)->reason);
-            int max_reconnections = 0;
+            int max_reconnections = 5;
             ESPARRAG_ASSERT(max_reconnections != 0);
 
             if (retries <= max_reconnections)
@@ -261,9 +261,10 @@ void Wifi::eventHandler(void *event_handler_arg,
         else if (event_id == WIFI_EVENT_AP_START)
         {
             ESPARRAG_LOG_INFO("AP START");
-            wifi->m_db.Set(CONFIG_ID::WIFI_STATUS, (uint8_t)WIFI_STATUS::AP);
+            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, (uint8_t)WIFI_STATE::AP);
             wifi->m_db.Commit();
         }
+
         else if (event_id == WIFI_EVENT_AP_STOP)
         {
             ESPARRAG_LOG_INFO("AP STOP");
