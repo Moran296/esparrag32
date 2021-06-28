@@ -33,11 +33,10 @@ eResult Wifi::Init()
         return eResult::ERROR_WIFI;
     }
 
-    dirty_list_t relevant_configs;
-    relevant_configs.set(CONFIG_ID::STA_SSID);
-    relevant_configs.set(CONFIG_ID::AP_SSID);
-    relevant_configs.set(CONFIG_ID::AP_PASSWORD);
-    m_db.Subscribe(relevant_configs, config_change_cb::create<Wifi, &Wifi::dbConfigChange>(*this));
+    auto changeCB = config_change_cb::create<Wifi, &Wifi::dbConfigChange>(*this);
+    m_db.Subscribe<CONFIG_ID::STA_SSID,
+                   CONFIG_ID::AP_SSID,
+                   CONFIG_ID::AP_PASSWORD>(changeCB);
 
     ap_netif = esp_netif_create_default_wifi_ap();
     ESPARRAG_ASSERT(ap_netif != nullptr);
@@ -59,9 +58,9 @@ eResult Wifi::provision()
 {
     ESPARRAG_LOG_INFO("provisioning...");
 
-    uint8_t getter = 0;
-    m_db.Get(CONFIG_ID::WIFI_STATUS, getter);
-    WIFI_STATUS mode(getter);
+    uint8_t enumGetter = 0;
+    m_db.Get(CONFIG_ID::WIFI_STATUS, enumGetter);
+    WIFI_STATUS mode(enumGetter);
     if (mode == WIFI_STATUS::STA && internet_connected)
         return eResult::SUCCESS;
 

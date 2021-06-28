@@ -90,12 +90,6 @@ void ConfigDB::Reset()
     Commit();
 }
 
-void ConfigDB::Subscribe(dirty_list_t configs, config_change_cb CB)
-{
-    ESPARRAG_ASSERT(m_subscribers.size() != m_subscribers.capacity());
-    m_subscribers.push_back(std::make_pair(configs, CB));
-}
-
 void ConfigDB::notify_subscribers()
 {
     for (auto &[list, cb] : m_subscribers)

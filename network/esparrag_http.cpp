@@ -106,15 +106,23 @@ HttpServer::HttpServer(ConfigDB &db) : m_db(db),
 
 eResult HttpServer::Init()
 {
-    dirty_list_t relevant_configs;
-    relevant_configs.set(CONFIG_ID::WIFI_STATUS);
-    m_db.Subscribe(relevant_configs, config_change_cb::create<HttpServer, &HttpServer::dbConfigChange>(*this));
+    auto changeCB = config_change_cb::create<HttpServer, &HttpServer::dbConfigChange>(*this);
+    m_db.Subscribe<CONFIG_ID::WIFI_STATUS> (changeCB);
 
     m_config = HTTPD_DEFAULT_CONFIG();
     m_config.uri_match_fn = httpd_uri_match_wildcard;
 
     ESPARRAG_LOG_INFO("http server initialized");
-    dbConfigChange(relevant_configs);
+
+    uint8_t enumGetter = 0;
+    m_db.Get(CONFIG_ID::WIFI_STATUS, enumGetter);
+    WIFI_STATUS mode(enumGetter);
+
+    if (mode != WIFI_STATUS::OFFLINE && !m_isRunning)
+    {
+        runServer();
+    }
+
     return eResult::SUCCESS;
 }
 

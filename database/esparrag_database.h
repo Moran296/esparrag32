@@ -23,7 +23,9 @@ public:
     eResult Init(bool reset = false);
     void Commit();
     void Reset();
-    void Subscribe(dirty_list_t configs, config_change_cb CB);
+
+    template<size_t... CONFIGS>
+    void Subscribe(config_change_cb CB);
 
     template <class VAL_T>
     eResult Set(CONFIG_ID id, VAL_T val);
@@ -46,6 +48,16 @@ private:
     ConfigDB &operator=(const ConfigDB &) = delete;
     ConfigDB(const ConfigDB &) = delete;
 };
+
+//Template functions implementation
+template<size_t... CONFIGS>
+void ConfigDB::Subscribe(config_change_cb CB)
+{
+    ESPARRAG_ASSERT(m_subscribers.size() != m_subscribers.capacity());
+    dirty_list_t bitset;
+    (bitset.set(CONFIGS), ...);
+    m_subscribers.push_back(std::make_pair(bitset, CB));
+}
 
 template <class VAL_T>
 eResult ConfigDB::Set(CONFIG_ID id, VAL_T val)
