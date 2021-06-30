@@ -24,13 +24,13 @@ public:
     void Commit();
     void Reset();
 
-    template<size_t... CONFIGS>
+    template <size_t... CONFIGS>
     void Subscribe(config_change_cb CB);
 
     template <class VAL_T>
     eResult Set(CONFIG_ID id, VAL_T val);
     template <class... Value>
-    eResult Set(std::pair<CONFIG_ID::enum_type, Value> ...changes);
+    eResult Set(std::pair<CONFIG_ID::enum_type, Value>... changes);
     eResult Set(CONFIG_ID id, const char *val);
 
     template <class VAL_T>
@@ -52,7 +52,7 @@ private:
 };
 
 //Template functions implementation
-template<size_t... CONFIGS>
+template <size_t... CONFIGS>
 void ConfigDB::Subscribe(config_change_cb CB)
 {
     ESPARRAG_ASSERT(m_subscribers.size() != m_subscribers.capacity());
@@ -80,20 +80,11 @@ eResult ConfigDB::Set(CONFIG_ID id, VAL_T val)
     return eResult::SUCCESS;
 }
 
-template<class F, class...Args>
-F for_each_arg(F f, Args&&...args) {
-  (f(std::forward<Args>(args)),...);
-  return f;
-}
-
 template <class... Value>
-eResult ConfigDB::Set(std::pair<CONFIG_ID::enum_type, Value> ...changes)
+eResult ConfigDB::Set(std::pair<CONFIG_ID::enum_type, Value>... changes)
 {
     ESPARRAG_ASSERT(m_isInitialized);
-    for_each_arg([this](auto c){
-        this->Set(c.first, c.second);
-        }, changes...);
-
+    (Set(changes.first, changes.second), ...);
     Commit();
     return eResult::SUCCESS;
 }

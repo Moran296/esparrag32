@@ -53,45 +53,52 @@ extern "C" void app_main()
     ConfigDB db;
     db.Init();
 
-    db.Set( std::pair(CONFIG_ID::STA_PASSWORD, "hooo"),
-            std::pair(CONFIG_ID::STA_SSID, "hoooa"));
+    db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "tahaha"),
+           std::pair(CONFIG_ID::STA_SSID, "rihihih"));
 
+    const char *ss = nullptr;
+    const char *pss = nullptr;
 
+    db.Get(CONFIG_ID::STA_SSID, ss);
+    db.Get(CONFIG_ID::STA_PASSWORD, pss);
 
-    Wifi wifi(db);
-    wifi.Init();
-    HttpServer server(db);
-    server.Init();
-    server.On("/index", METHOD::GET,
-              [](Request &req, Response &res)
-              {
-                  res.m_code = Response::CODE(200);
-                  res.m_format = Response::FORMAT::HTML;
-                  res.m_string = indx;
-                  return eResult::SUCCESS;
-              });
+    ESPARRAG_LOG_INFO("ss %s", ss);
+    ESPARRAG_LOG_INFO("pss %s", pss);
 
-    server.On("/credentials", METHOD::POST,
-              [](Request &req, Response &res)
-              {
-                  if (req.m_content)
-                  {
-                      char *cont = cJSON_Print(req.m_content);
-                      ESPARRAG_LOG_INFO("%s", cont);
-                      cJSON_free(cont);
-                  }
+    // Wifi wifi(db);
+    // wifi.Init();
+    // HttpServer server(db);
+    // server.Init();
+    // server.On("/index", METHOD::GET,
+    //           [](Request &req, Response &res)
+    //           {
+    //               res.m_code = Response::CODE(200);
+    //               res.m_format = Response::FORMAT::HTML;
+    //               res.m_string = indx;
+    //               return eResult::SUCCESS;
+    //           });
 
-                  res.m_code = Response::CODE(200);
-                  res.m_format = Response::FORMAT::JSON;
-                  cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");
-                  return eResult::SUCCESS;
-              });
+    // server.On("/credentials", METHOD::POST,
+    //           [](Request &req, Response &res)
+    //           {
+    //               if (req.m_content)
+    //               {
+    //                   char *cont = cJSON_Print(req.m_content);
+    //                   ESPARRAG_LOG_INFO("%s", cont);
+    //                   cJSON_free(cont);
+    //               }
 
-    vTaskDelay(15_sec);
+    //               res.m_code = Response::CODE(200);
+    //               res.m_format = Response::FORMAT::JSON;
+    //               cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");
+    //               return eResult::SUCCESS;
+    //           });
 
-    db.Set(CONFIG_ID::STA_SSID, "Rozen_2");
-    db.Set(CONFIG_ID::STA_PASSWORD, "0545525855");
-    db.Commit();
+    // vTaskDelay(15_sec);
+
+    // db.Set(CONFIG_ID::STA_SSID, "Rozen_2");
+    // db.Set(CONFIG_ID::STA_PASSWORD, "0545525855");
+    // db.Commit();
 
     vTaskDelay(10000000000);
 }
