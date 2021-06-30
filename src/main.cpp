@@ -52,6 +52,12 @@ extern "C" void app_main()
     nvs_flash_erase();
     ConfigDB db;
     db.Init();
+
+    db.Set( std::pair(CONFIG_ID::STA_PASSWORD, "hooo"),
+            std::pair(CONFIG_ID::STA_SSID, "hoooa"));
+
+
+
     Wifi wifi(db);
     wifi.Init();
     HttpServer server(db);

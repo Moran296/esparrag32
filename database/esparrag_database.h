@@ -29,6 +29,8 @@ public:
 
     template <class VAL_T>
     eResult Set(CONFIG_ID id, VAL_T val);
+    template <class... Value>
+    eResult Set(std::pair<CONFIG_ID::enum_type, Value> ...changes);
     eResult Set(CONFIG_ID id, const char *val);
 
     template <class VAL_T>
@@ -75,6 +77,24 @@ eResult ConfigDB::Set(CONFIG_ID id, VAL_T val)
     if (isChanged)
         m_dirty_list.set(id);
 
+    return eResult::SUCCESS;
+}
+
+template<class F, class...Args>
+F for_each_arg(F f, Args&&...args) {
+  (f(std::forward<Args>(args)),...);
+  return f;
+}
+
+template <class... Value>
+eResult ConfigDB::Set(std::pair<CONFIG_ID::enum_type, Value> ...changes)
+{
+    ESPARRAG_ASSERT(m_isInitialized);
+    for_each_arg([this](auto c){
+        this->Set(c.first, c.second);
+        }, changes...);
+
+    Commit();
     return eResult::SUCCESS;
 }
 
