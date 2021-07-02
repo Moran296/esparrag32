@@ -42,7 +42,9 @@ cJSON *HttpServer::parseHtmlBody(const char *body)
         view.remove_prefix(end + 1);
         end = view.find("=");
 
-        cJSON_AddStringToObject(content, key_buffer, val_buffer);
+        if (strlen(key_buffer) > 0 && strlen(val_buffer) > 0)
+            cJSON_AddStringToObject(content, key_buffer, val_buffer);
+
         memset(key_buffer, 0, sizeof(key_buffer));
         memset(val_buffer, 0, sizeof(val_buffer));
     }
