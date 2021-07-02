@@ -53,52 +53,69 @@ extern "C" void app_main()
     ConfigDB db;
     db.Init();
 
-    db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "tahaha"),
-           std::pair(CONFIG_ID::STA_SSID, "rihihih"));
+    // WIFI_STATE state = WIFI_STATE::STA;
+    // db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "tahaha"),
+    //        std::pair(CONFIG_ID::WIFI_STATE, state.get_value()));
 
-    const char *ss = nullptr;
-    const char *pss = nullptr;
+    // auto newState = db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
+    // auto ss = db.Get<const char *>(CONFIG_ID::STA_PASSWORD);
 
-    db.Get(CONFIG_ID::STA_SSID, ss);
-    db.Get(CONFIG_ID::STA_PASSWORD, pss);
+    // ESPARRAG_LOG_INFO("state %d", newState.get_value());
+    // ESPARRAG_LOG_INFO("ss %s", ss);
 
-    ESPARRAG_LOG_INFO("ss %s", ss);
-    ESPARRAG_LOG_INFO("pss %s", pss);
+    Wifi wifi(db);
+    wifi.Init();
+    HttpServer server(db);
+    server.Init();
+    server.On("/index", METHOD::GET,
+              [](Request &req, Response &res)
+              {
+                  res.m_code = Response::CODE(200);
+                  res.m_format = Response::FORMAT::HTML;
+                  res.m_string = indx;
+                  return eResult::SUCCESS;
+              });
 
-    // Wifi wifi(db);
-    // wifi.Init();
-    // HttpServer server(db);
-    // server.Init();
-    // server.On("/index", METHOD::GET,
-    //           [](Request &req, Response &res)
-    //           {
-    //               res.m_code = Response::CODE(200);
-    //               res.m_format = Response::FORMAT::HTML;
-    //               res.m_string = indx;
-    //               return eResult::SUCCESS;
-    //           });
+    server.On("/credentials", METHOD::POST,
+              [&db](Request &req, Response &res)
+              {
+                  if (!req.m_content)
+                  {
+                      res.m_code = Response::CODE(404);
+                      res.m_format = Response::FORMAT::JSON;
+                      cJSON_AddStringToObject(res.m_json, "message", "invalid request");
+                      return eResult::SUCCESS;
+                  }
 
-    // server.On("/credentials", METHOD::POST,
-    //           [](Request &req, Response &res)
-    //           {
-    //               if (req.m_content)
-    //               {
-    //                   char *cont = cJSON_Print(req.m_content);
-    //                   ESPARRAG_LOG_INFO("%s", cont);
-    //                   cJSON_free(cont);
-    //               }
+                  char *cont = cJSON_Print(req.m_content);
+                  ESPARRAG_LOG_INFO("%s", cont);
+                  cJSON_free(cont);
 
-    //               res.m_code = Response::CODE(200);
-    //               res.m_format = Response::FORMAT::JSON;
-    //               cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");
-    //               return eResult::SUCCESS;
-    //           });
+                  cJSON *ssidJ = cJSON_GetObjectItem(req.m_content, "ssid");
+                  cJSON *passJ = cJSON_GetObjectItem(req.m_content, "password");
+                  const char *ssid = cJSON_GetStringValue(ssidJ);
+                  const char *pass = cJSON_GetStringValue(passJ);
+                  if (ssid == nullptr || pass == nullptr)
+                  {
+                      res.m_code = Response::CODE(404);
+                      res.m_format = Response::FORMAT::JSON;
+                      cJSON_AddStringToObject(res.m_json, "message", "missing parameters");
+                      return eResult::SUCCESS;
+                  }
 
-    // vTaskDelay(15_sec);
+                  db.Set(std::pair(CONFIG_ID::STA_PASSWORD, pass),
+                         std::pair(CONFIG_ID::STA_SSID, ssid));
 
-    // db.Set(CONFIG_ID::STA_SSID, "Rozen_2");
-    // db.Set(CONFIG_ID::STA_PASSWORD, "0545525855");
-    // db.Commit();
+                  res.m_code = Response::CODE(200);
+                  res.m_format = Response::FORMAT::JSON;
+                  cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");
+                  return eResult::SUCCESS;
+              });
 
-    vTaskDelay(10000000000);
+    vTaskDelay(5_sec);
+
+    // db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "11112222"),
+    //        std::pair(CONFIG_ID::STA_SSID, "suannai"));
+
+    vTaskDelay(100000000);
 }

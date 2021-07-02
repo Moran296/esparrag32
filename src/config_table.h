@@ -12,6 +12,7 @@ struct CONFIG_ID
         STA_SSID,
         STA_PASSWORD,
         WIFI_STATE,
+        SOME_NUM,
 
         NUM
     };
@@ -22,6 +23,7 @@ struct CONFIG_ID
     ETL_ENUM_DEFAULT(STA_SSID)
     ETL_ENUM_DEFAULT(STA_PASSWORD)
     ETL_ENUM_DEFAULT(WIFI_STATE)
+    ETL_ENUM_DEFAULT(SOME_NUM)
     ETL_END_ENUM_TYPE
 };
 

@@ -29,30 +29,6 @@ eResult ConfigDB::Init(bool reset)
     return res;
 }
 
-eResult ConfigDB::Set(CONFIG_ID id, const char *val)
-{
-    ESPARRAG_ASSERT(m_isInitialized);
-    eResult res = eResult::SUCCESS;
-    bool isChanged = false;
-    res = m_configs[id]->set(val, isChanged);
-    if (res != eResult::SUCCESS)
-    {
-        ESPARRAG_LOG_ERROR("set config failed");
-        return res;
-    }
-
-    if (isChanged)
-        m_dirty_list.set(id);
-
-    return eResult::SUCCESS;
-}
-
-void ConfigDB::Get(CONFIG_ID id, const char *&val) const
-{
-    ESPARRAG_ASSERT(m_isInitialized);
-    return m_configs[id]->get(val);
-}
-
 void ConfigDB::Commit()
 {
     ESPARRAG_ASSERT(m_isInitialized);

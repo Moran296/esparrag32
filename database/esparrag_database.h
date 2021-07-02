@@ -5,6 +5,8 @@
 #include "config_entry.h"
 #include "config_table.h"
 #include <utility>
+#include <type_traits>
+#include <tuple>
 #include "etl/vector.h"
 #include "etl/delegate.h"
 #include "etl/bitset.h"
@@ -29,13 +31,12 @@ public:
 
     template <class VAL_T>
     eResult Set(CONFIG_ID id, VAL_T val);
+
     template <class... Value>
     eResult Set(std::pair<CONFIG_ID::enum_type, Value>... changes);
-    eResult Set(CONFIG_ID id, const char *val);
 
     template <class VAL_T>
-    void Get(CONFIG_ID id, VAL_T &val) const;
-    void Get(CONFIG_ID id, const char *&val) const;
+    VAL_T Get(CONFIG_ID::enum_type id) const;
 
 private:
     const char *configKey(size_t id);
@@ -90,10 +91,23 @@ eResult ConfigDB::Set(std::pair<CONFIG_ID::enum_type, Value>... changes)
 }
 
 template <class VAL_T>
-void ConfigDB::Get(CONFIG_ID id, VAL_T &val) const
+VAL_T ConfigDB::Get(CONFIG_ID::enum_type id) const
 {
     ESPARRAG_ASSERT(m_isInitialized);
-    return m_configs[id]->get(val);
+
+    if constexpr (std::is_class_v<VAL_T>)
+    {
+        typename VAL_T::value_type getter;
+        m_configs[id]->get(getter);
+        return VAL_T(getter);
+    }
+
+    else
+    {
+        VAL_T v;
+        m_configs[id]->get(v);
+        return v;
+    }
 }
 
 #endif

@@ -1,18 +1,53 @@
 #include "esparrag_http.h"
 #include "etl/mutex.h"
 #include "etl/string_view.h"
+#include "etl/string.h"
 #include "esparrag_wifi.h"
 
 #define HTTP_REQUEST_CONTENT_MAX_SIZE 512
 #define DATA_FIELD "\"body\""
 
-cJSON *HttpServer::parseBody(const char *body)
+cJSON *HttpServer::parseJsonBody(const char *body)
 {
+    ESPARRAG_LOG_INFO("%s", body);
     char *index = strstr(body, DATA_FIELD);
     if (!index)
         return nullptr;
 
     return cJSON_Parse(index + sizeof(DATA_FIELD));
+}
+
+cJSON *HttpServer::parseHtmlBody(const char *body)
+{
+    static char key_buffer[10] = {0};
+    static char val_buffer[24] = {0};
+    etl::string_view view(body);
+    if (view.find("=") == etl::string_view::npos)
+        return nullptr;
+    cJSON *content = cJSON_CreateObject();
+    ESPARRAG_ASSERT(content);
+
+    size_t end = view.find("=");
+    while (end != etl::string_view::npos)
+    {
+        strncpy(key_buffer, view.begin(), end);
+        ESPARRAG_LOG_INFO("key - %s", key_buffer);
+
+        view.remove_prefix(end + 1);
+        end = view.find("&");
+
+        strncpy(val_buffer, view.begin(), etl::min(end, view.size()));
+        ESPARRAG_LOG_INFO("val - %s", val_buffer);
+
+        view.remove_prefix(end + 1);
+        end = view.find("=");
+
+        cJSON_AddStringToObject(content, key_buffer, val_buffer);
+        memset(key_buffer, 0, sizeof(key_buffer));
+        memset(val_buffer, 0, sizeof(val_buffer));
+    }
+
+    return content;
 }
 
 esp_err_t HttpServer::requestHandler(httpd_req_t *esp_request)
@@ -45,10 +80,13 @@ esp_err_t HttpServer::requestHandler(httpd_req_t *esp_request)
         return ESP_OK;
     }
 
-    ESPARRAG_LOG_INFO("found handler");
+    ESPARRAG_LOG_INFO("handling %s", esp_request->uri);
 
-    //prepare request and response structs and activate the handler
-    Request request(server->parseBody(content), esp_request->uri, METHOD(esp_request->method));
+    cJSON *json_body = server->parseJsonBody(content);
+    if (json_body == nullptr)
+        json_body = server->parseHtmlBody(content);
+
+    Request request(json_body, esp_request->uri, METHOD(esp_request->method));
     Response response;
     res = handler->cb(request, response);
     if (res != eResult::SUCCESS)
@@ -115,10 +153,7 @@ eResult HttpServer::Init()
 
     ESPARRAG_LOG_INFO("http server initialized");
 
-    uint8_t enumGetter = 0;
-    m_db.Get(CONFIG_ID::WIFI_STATE, enumGetter);
-    WIFI_STATE mode(enumGetter);
-
+    auto mode = m_db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
     if (mode != WIFI_STATE::OFFLINE && !m_isRunning)
     {
         runServer();
@@ -248,10 +283,7 @@ eResult HttpServer::stopServer()
 
 void HttpServer::dbConfigChange(const dirty_list_t &dirty_list)
 {
-    uint8_t getter = 0;
-    m_db.Get(CONFIG_ID::WIFI_STATE, getter);
-    WIFI_STATE mode(getter);
-
+    auto mode = m_db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
     if (mode != WIFI_STATE::OFFLINE && !m_isRunning)
     {
         runServer();

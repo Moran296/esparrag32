@@ -58,9 +58,7 @@ eResult Wifi::provision()
 {
     ESPARRAG_LOG_INFO("provisioning...");
 
-    uint8_t enumGetter = 0;
-    m_db.Get(CONFIG_ID::WIFI_STATE, enumGetter);
-    WIFI_STATE mode(enumGetter);
+    auto mode = m_db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
     if (mode == WIFI_STATE::STA && internet_connected)
         return eResult::SUCCESS;
 
@@ -70,10 +68,8 @@ eResult Wifi::provision()
     }
 
     //check for sta credentials in database
-    const char *sta_ssid = nullptr;
-    const char *sta_password = nullptr;
-    m_db.Get(CONFIG_ID::STA_SSID, sta_ssid);
-    m_db.Get(CONFIG_ID::STA_PASSWORD, sta_password);
+    auto sta_ssid = m_db.Get<const char *>(CONFIG_ID::STA_SSID);
+    auto sta_password = m_db.Get<const char *>(CONFIG_ID::STA_PASSWORD);
     if (ValidityCheck(sta_ssid, sta_password) == true)
     {
         if (mode == WIFI_STATE::AP)
@@ -128,7 +124,7 @@ eResult Wifi::sta_start(const char *ssid, const char *password)
     strlcpy((char *)config.sta.password, password, sizeof(config.sta.password));
     config.sta.bssid_set = false;
 
-    err = esp_wifi_set_config(ESP_IF_WIFI_STA, &config);
+    err = esp_wifi_set_config(WIFI_IF_STA, &config);
     if (err != ESP_OK)
     {
         ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
@@ -162,15 +158,14 @@ void Wifi::disconnect()
     esp_wifi_disconnect();
     esp_wifi_stop();
     //should we switch to offline?
-    m_db.Set(CONFIG_ID::WIFI_STATE, (uint8_t)WIFI_STATE::OFFLINE);
+    WIFI_STATE state = WIFI_STATE::OFFLINE;
+    m_db.Set(CONFIG_ID::WIFI_STATE, state.get_value());
 }
 
 eResult Wifi::ap_start()
 {
-    const char *ssid = nullptr;
-    const char *password = nullptr;
-    m_db.Get(CONFIG_ID::AP_SSID, ssid);
-    m_db.Get(CONFIG_ID::AP_PASSWORD, password);
+    auto ssid = m_db.Get<const char *>(CONFIG_ID::AP_SSID);
+    auto password = m_db.Get<const char *>(CONFIG_ID::AP_PASSWORD);
     ESPARRAG_LOG_INFO("ap ssid %s password %s", ssid, password);
     ESPARRAG_ASSERT(ValidityCheck(ssid, password) == true);
 
@@ -190,7 +185,7 @@ eResult Wifi::ap_start()
     config.ap.channel = 1;
     config.ap.authmode = WIFI_AUTH_WPA2_PSK;
 
-    err = esp_wifi_set_config(ESP_IF_WIFI_AP, &config);
+    err = esp_wifi_set_config(WIFI_IF_AP, &config);
     if (err != ESP_OK)
     {
         ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
@@ -235,7 +230,8 @@ void Wifi::eventHandler(void *event_handler_arg,
         {
             ESPARRAG_LOG_INFO("STA CONNECTED");
             wifi->internet_connected = true;
-            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, (uint8_t)WIFI_STATE::STA);
+            WIFI_STATE state = WIFI_STATE::STA;
+            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, state.get_value());
             wifi->m_db.Commit();
             retries = 0;
         }
@@ -261,7 +257,8 @@ void Wifi::eventHandler(void *event_handler_arg,
         else if (event_id == WIFI_EVENT_AP_START)
         {
             ESPARRAG_LOG_INFO("AP START");
-            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, (uint8_t)WIFI_STATE::AP);
+            WIFI_STATE state = WIFI_STATE::AP;
+            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, state.get_value());
             wifi->m_db.Commit();
         }
 
