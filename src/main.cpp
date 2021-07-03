@@ -3,6 +3,7 @@
 #include "nvs_flash.h"
 #include "esparrag_log.h"
 #include "esparrag_database.h"
+#include "esparrag_gpio.h"
 #include "esparrag_http.h"
 #include "esparrag_wifi.h"
 #include "freertos/FreeRTOS.h"
@@ -46,6 +47,37 @@ const char indx[] = {
     0x3e, 0x0d, 0x0a, 0x20, 0x20, 0x3c, 0x2f, 0x62, 0x6f, 0x64, 0x79, 0x3e,
     0x0d, 0x0a, 0x3c, 0x2f, 0x68, 0x74, 0x6d, 0x6c, 0x3e, 0};
 
+class Debouncer
+{
+public:
+    Debouncer(const int64_t debounce_time_usec = 5000) : debounce_time(debounce_time_usec),
+                                                         last_sample(esp_timer_get_time()) {}
+    bool IsValidNow()
+    {
+        if (esp_timer_get_time() - last_sample > debounce_time)
+        {
+            last_sample = esp_timer_get_time();
+            return true;
+        }
+
+        return false;
+    }
+
+private:
+    const int64_t debounce_time;
+    int64_t last_sample;
+};
+
+void ISR(void *arg)
+{
+    static Debouncer sample(100000);
+    if (sample.IsValidNow())
+    {
+        GPO *led = reinterpret_cast<GPO *>(arg);
+        led->Toggle();
+    }
+}
+
 extern "C" void app_main()
 {
 
@@ -53,15 +85,19 @@ extern "C" void app_main()
     ConfigDB db;
     db.Init();
 
-    // WIFI_STATE state = WIFI_STATE::STA;
-    // db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "tahaha"),
-    //        std::pair(CONFIG_ID::WIFI_STATE, state.get_value()));
+    GPO led(2);
+    GPI touch(13, GPIO_INTR_POSEDGE, true, false, true);
+    touch.EnableInterrupt(ISR, &led);
 
-    // auto newState = db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
-    // auto ss = db.Get<const char *>(CONFIG_ID::STA_PASSWORD);
+    WIFI_STATE state = WIFI_STATE::STA;
+    db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "tahaha"),
+           std::pair(CONFIG_ID::WIFI_STATE, state.get_value()));
 
-    // ESPARRAG_LOG_INFO("state %d", newState.get_value());
-    // ESPARRAG_LOG_INFO("ss %s", ss);
+    auto newState = db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
+    auto ss = db.Get<const char *>(CONFIG_ID::STA_PASSWORD);
+
+    ESPARRAG_LOG_INFO("state %d", newState.get_value());
+    ESPARRAG_LOG_INFO("ss %s", ss);
 
     Wifi wifi(db);
     wifi.Init();
@@ -114,8 +150,8 @@ extern "C" void app_main()
 
     vTaskDelay(5_sec);
 
-    // db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "11112222"),
-    //        std::pair(CONFIG_ID::STA_SSID, "suannai"));
+    db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "11112222"),
+           std::pair(CONFIG_ID::STA_SSID, "suannai"));
 
     vTaskDelay(100000000);
 }
