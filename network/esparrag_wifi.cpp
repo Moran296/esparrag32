@@ -1,9 +1,6 @@
 #include "esparrag_wifi.h"
-#include "config_table.h"
 #include "string.h"
 #include "esp_wifi.h"
-
-Wifi::Wifi(ConfigDB &db) : m_db(db) {}
 
 eResult Wifi::Init()
 {
@@ -33,10 +30,10 @@ eResult Wifi::Init()
         return eResult::ERROR_WIFI;
     }
 
-    auto changeCB = config_change_cb::create<Wifi, &Wifi::dbConfigChange>(*this);
-    m_db.Subscribe<CONFIG_ID::STA_SSID,
-                   CONFIG_ID::AP_SSID,
-                   CONFIG_ID::AP_PASSWORD>(changeCB);
+    auto changeCB = DB_PARAM_CALLBACK(AppData::Config)::create<Wifi, &Wifi::dbConfigChange>(*this);
+    AppData::Config.Subscribe<CONFIG_ID::STA_SSID,
+                              CONFIG_ID::AP_SSID,
+                              CONFIG_ID::AP_PASSWORD>(changeCB);
 
     ap_netif = esp_netif_create_default_wifi_ap();
     ESPARRAG_ASSERT(ap_netif != nullptr);
@@ -58,21 +55,24 @@ eResult Wifi::provision()
 {
     ESPARRAG_LOG_INFO("provisioning...");
 
-    auto mode = m_db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
-    if (mode == WIFI_STATE::STA && internet_connected)
+    uint8_t mode = 0;
+    AppData::Status.Get<STATUS_ID::WIFI_STATE>(mode);
+
+    if (mode == WIFI_STA && internet_connected)
         return eResult::SUCCESS;
 
-    if (mode == WIFI_STATE::STA)
+    if (mode == WIFI_STA)
     {
         sta_connect();
     }
 
     //check for sta credentials in database
-    auto sta_ssid = m_db.Get<const char *>(CONFIG_ID::STA_SSID);
-    auto sta_password = m_db.Get<const char *>(CONFIG_ID::STA_PASSWORD);
+    const char *sta_ssid = nullptr;
+    const char *sta_password = nullptr;
+    AppData::Config.Get<CONFIG_ID::STA_SSID, CONFIG_ID::STA_PASSWORD>(sta_ssid, sta_password);
     if (ValidityCheck(sta_ssid, sta_password) == true)
     {
-        if (mode == WIFI_STATE::AP)
+        if (mode == WIFI_AP)
         {
             ESPARRAG_LOG_INFO("disconnect");
             disconnect();
@@ -82,7 +82,7 @@ eResult Wifi::provision()
         sta_start(sta_ssid, sta_password);
     }
 
-    else if (mode == WIFI_STATE::OFFLINE)
+    else if (mode == WIFI_OFFLINE)
     {
         ESPARRAG_LOG_INFO("starting ap");
         ap_start();
@@ -158,14 +158,16 @@ void Wifi::disconnect()
     esp_wifi_disconnect();
     esp_wifi_stop();
     //should we switch to offline?
-    WIFI_STATE state = WIFI_STATE::OFFLINE;
-    m_db.Set(CONFIG_ID::WIFI_STATE, state.get_value());
+    eWifiState state = WIFI_OFFLINE;
+    AppData::Status.Set<STATUS_ID::WIFI_STATE>((uint8_t)state);
+    AppData::Status.Commit();
 }
 
 eResult Wifi::ap_start()
 {
-    auto ssid = m_db.Get<const char *>(CONFIG_ID::AP_SSID);
-    auto password = m_db.Get<const char *>(CONFIG_ID::AP_PASSWORD);
+    const char *ssid = nullptr;
+    const char *password = nullptr;
+    AppData::Config.Get<CONFIG_ID::AP_SSID, CONFIG_ID::AP_PASSWORD>(ssid, password);
     ESPARRAG_LOG_INFO("ap ssid %s password %s", ssid, password);
     ESPARRAG_ASSERT(ValidityCheck(ssid, password) == true);
 
@@ -199,11 +201,11 @@ eResult Wifi::ap_start()
         return eResult::ERROR_WIFI;
     }
 
-    ESPARRAG_LOG_INFO("ap start");
+    ESPARRAG_LOG_INFO("starting ap.....");
     return eResult::SUCCESS;
 }
 
-void Wifi::dbConfigChange(const dirty_list_t &list)
+void Wifi::dbConfigChange(DB_PARAM_DIRTY_LIST(AppData::Config) list)
 {
     provision();
 }
@@ -230,11 +232,14 @@ void Wifi::eventHandler(void *event_handler_arg,
         {
             ESPARRAG_LOG_INFO("STA CONNECTED");
             wifi->internet_connected = true;
-            WIFI_STATE state = WIFI_STATE::STA;
-            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, state.get_value());
-            wifi->m_db.Commit();
+
+            eWifiState state = WIFI_STA;
+            AppData::Status.Set<STATUS_ID::WIFI_STATE>((uint8_t)state);
+            AppData::Status.Commit();
+
             retries = 0;
         }
+
         else if (event_id == WIFI_EVENT_STA_DISCONNECTED)
         {
             wifi->internet_connected = false;
@@ -256,10 +261,10 @@ void Wifi::eventHandler(void *event_handler_arg,
         }
         else if (event_id == WIFI_EVENT_AP_START)
         {
-            ESPARRAG_LOG_INFO("AP START");
-            WIFI_STATE state = WIFI_STATE::AP;
-            wifi->m_db.Set(CONFIG_ID::WIFI_STATE, state.get_value());
-            wifi->m_db.Commit();
+            ESPARRAG_LOG_INFO("AP STARTED");
+            eWifiState state = WIFI_AP;
+            AppData::Status.Set<STATUS_ID::WIFI_STATE>((uint8_t)state);
+            AppData::Status.Commit();
         }
 
         else if (event_id == WIFI_EVENT_AP_STOP)

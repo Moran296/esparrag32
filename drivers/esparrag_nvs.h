@@ -19,6 +19,7 @@ public:
     eResult SetBlob(const char *key, const void *value, size_t len);
     eResult GetBlob(const char *key, void *value, size_t maxLen, size_t &actualLen);
     eResult Erase(const char *key);
+    eResult Erase();
     eResult Commit();
 
 private:

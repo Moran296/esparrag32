@@ -125,6 +125,19 @@ eResult NVS::SetString(const char *key, const char *value)
     return eResult::SUCCESS;
 }
 
+eResult NVS::Erase()
+{
+    Lock lock(m_mutex);
+
+    esp_err_t err = nvs_erase_all(m_handle);
+    if (err != ESP_OK)
+    {
+        ESPARRAG_LOG_ERROR("NVS erase failed. esp err = %d", err);
+        return eResult::ERROR_FLASH;
+    }
+    return eResult::SUCCESS;
+}
+
 eResult NVS::Erase(const char *key)
 {
     Lock lock(m_mutex);

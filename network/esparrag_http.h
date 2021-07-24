@@ -5,6 +5,7 @@
 #include "esparrag_database.h"
 #include "esp_http_server.h"
 #include "esparrag_request.h"
+#include "app_data.h"
 #include "esparrag_response.h"
 #include "etl/delegate.h"
 #include "etl/string.h"
@@ -27,7 +28,6 @@ class HttpServer
 public:
     static constexpr uint8_t HANDLERS_MAX_NUM = 15;
 
-    HttpServer(ConfigDB &db);
     eResult Init();
     eResult On(const char *uri,
                METHOD method,
@@ -35,11 +35,10 @@ public:
 
 private:
     bool m_isRunning = false;
-    ConfigDB &m_db;
     etl::vector<http_event_handler_t, HANDLERS_MAX_NUM> m_handlers;
 
-    httpd_handle_t m_handle;
-    httpd_config_t m_config;
+    httpd_handle_t m_handle = nullptr;
+    httpd_config_t m_config{};
 
     eResult runServer();
     eResult stopServer();
@@ -48,7 +47,7 @@ private:
     cJSON *parseHtmlBody(const char *body);
     http_event_handler_t *findHandler(httpd_req_t *esp_request);
     void sendResponse(httpd_req_t *esp_request, Response &response);
-    void dbConfigChange(const dirty_list_t &dirty_list);
+    void dbStatusChange(DB_PARAM_DIRTY_LIST(AppData::Status) list);
 
     static esp_err_t requestHandler(httpd_req_t *esp_request);
     static esp_err_t post_handler(httpd_req_t *req);

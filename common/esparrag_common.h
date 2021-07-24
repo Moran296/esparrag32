@@ -2,6 +2,7 @@
 #define ESPARRAGOS_COMMON__
 #include "stdint.h"
 #include "freertos/FreeRTOS.h"
+#include "etl/enum_type.h"
 #include "esp_log.h"
 
 #define ESPARRAG_ASSERT(X)                                                                    \
@@ -13,6 +14,7 @@
     }
 
 #define ETL_ENUM_DEFAULT(ID) ETL_ENUM_TYPE(ID, #ID)
+#define DEFAULT_FREERTOS_TIMEOUT pdMS_TO_TICKS(5000) // 5 seconds
 
 inline TickType_t operator"" _ms(unsigned long long milli)
 {

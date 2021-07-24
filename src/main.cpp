@@ -8,6 +8,9 @@
 #include "esparrag_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <atomic>
+#include "esparrag_time_units.h"
+#include "app_data.h"
 
 const char indx[] = {
     0x3c, 0x21, 0x44, 0x4f, 0x43, 0x54, 0x59, 0x50, 0x45, 0x20, 0x68, 0x74,
@@ -50,8 +53,8 @@ const char indx[] = {
 class Debouncer
 {
 public:
-    Debouncer(const int64_t debounce_time_usec = 5000) : debounce_time(debounce_time_usec),
-                                                         last_sample(esp_timer_get_time()) {}
+    Debouncer(const int64_t debounce_time_usec = 100000) : debounce_time(debounce_time_usec),
+                                                           last_sample(esp_timer_get_time()) {}
     bool IsValidNow()
     {
         if (esp_timer_get_time() - last_sample > debounce_time)
@@ -68,41 +71,33 @@ private:
     int64_t last_sample;
 };
 
+bool state;
+std::atomic<int> presses = 0;
+std::atomic<int> releases = 0;
+
 void ISR(void *arg)
 {
-    static Debouncer sample(100000);
-    if (sample.IsValidNow())
+    static int64_t last_sample = esp_timer_get_time();
+    if (esp_timer_get_time() - last_sample > 100000)
     {
-        GPO *led = reinterpret_cast<GPO *>(arg);
-        led->Toggle();
+        state = !state;
+        if (state)
+            presses++;
+        else
+            releases++;
+
+        last_sample = esp_timer_get_time();
     }
 }
 
 extern "C" void app_main()
 {
 
-    nvs_flash_erase();
-    ConfigDB db;
-    db.Init();
-
-    GPO led(2);
-    GPI touch(13, GPIO_INTR_POSEDGE, true, false, true);
-    touch.EnableInterrupt(ISR, &led);
-
-    WIFI_STATE state = WIFI_STATE::STA;
-    db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "tahaha"),
-           std::pair(CONFIG_ID::WIFI_STATE, state.get_value()));
-
-    auto newState = db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
-    auto ss = db.Get<const char *>(CONFIG_ID::STA_PASSWORD);
-
-    ESPARRAG_LOG_INFO("state %d", newState.get_value());
-    ESPARRAG_LOG_INFO("ss %s", ss);
-
-    Wifi wifi(db);
+    Wifi wifi;
     wifi.Init();
-    HttpServer server(db);
+    HttpServer server;
     server.Init();
+
     server.On("/index", METHOD::GET,
               [](Request &req, Response &res)
               {
@@ -113,7 +108,7 @@ extern "C" void app_main()
               });
 
     server.On("/credentials", METHOD::POST,
-              [&db](Request &req, Response &res)
+              [](Request &req, Response &res)
               {
                   if (!req.m_content)
                   {
@@ -139,9 +134,7 @@ extern "C" void app_main()
                       return eResult::SUCCESS;
                   }
 
-                  db.Set(std::pair(CONFIG_ID::STA_PASSWORD, pass),
-                         std::pair(CONFIG_ID::STA_SSID, ssid));
-
+                  AppData::Config.Set<CONFIG_ID::STA_SSID, CONFIG_ID::STA_PASSWORD>(ssid, pass);
                   res.m_code = Response::CODE(200);
                   res.m_format = Response::FORMAT::JSON;
                   cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");
@@ -150,8 +143,5 @@ extern "C" void app_main()
 
     vTaskDelay(5_sec);
 
-    db.Set(std::pair(CONFIG_ID::STA_PASSWORD, "11112222"),
-           std::pair(CONFIG_ID::STA_SSID, "suannai"));
-
-    vTaskDelay(100000000);
+    vTaskSuspend(nullptr);
 }

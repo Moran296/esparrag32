@@ -142,21 +142,19 @@ void HttpServer::sendResponse(httpd_req_t *esp_request, Response &response)
         cJSON_free((void *)responseString);
 }
 
-HttpServer::HttpServer(ConfigDB &db) : m_db(db),
-                                       m_handle(nullptr) {}
-
 eResult HttpServer::Init()
 {
-    auto changeCB = config_change_cb::create<HttpServer, &HttpServer::dbConfigChange>(*this);
-    m_db.Subscribe<CONFIG_ID::WIFI_STATE>(changeCB);
+    auto changeCB = DB_PARAM_CALLBACK(AppData::Status)::create<HttpServer, &HttpServer::dbStatusChange>(*this);
+    AppData::Status.Subscribe<STATUS_ID::WIFI_STATE>(changeCB);
 
     m_config = HTTPD_DEFAULT_CONFIG();
     m_config.uri_match_fn = httpd_uri_match_wildcard;
 
     ESPARRAG_LOG_INFO("http server initialized");
 
-    auto mode = m_db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
-    if (mode != WIFI_STATE::OFFLINE && !m_isRunning)
+    uint8_t mode = 0;
+    AppData::Status.Get<STATUS_ID::WIFI_STATE>(mode);
+    if (mode != WIFI_OFFLINE && !m_isRunning)
     {
         runServer();
     }
@@ -283,10 +281,11 @@ eResult HttpServer::stopServer()
     return eResult::SUCCESS;
 }
 
-void HttpServer::dbConfigChange(const dirty_list_t &dirty_list)
+void HttpServer::dbStatusChange(DB_PARAM_DIRTY_LIST(AppData::Status) list)
 {
-    auto mode = m_db.Get<WIFI_STATE>(CONFIG_ID::WIFI_STATE);
-    if (mode != WIFI_STATE::OFFLINE && !m_isRunning)
+    uint8_t mode = 0;
+    AppData::Status.Get<STATUS_ID::WIFI_STATE>(mode);
+    if (mode != WIFI_OFFLINE && !m_isRunning)
     {
         runServer();
     }

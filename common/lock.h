@@ -10,7 +10,7 @@ struct Lock
     Lock(SemaphoreHandle_t mutex) : m_mutex(mutex)
     {
         ESPARRAG_ASSERT(m_mutex != nullptr);
-        ESPARRAG_ASSERT(pdTRUE == xSemaphoreTake(m_mutex, portMAX_DELAY));
+        ESPARRAG_ASSERT(pdTRUE == xSemaphoreTake(m_mutex, DEFAULT_FREERTOS_TIMEOUT));
     }
 
     ~Lock()

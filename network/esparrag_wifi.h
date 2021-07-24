@@ -3,13 +3,14 @@
 
 #include "esparrag_common.h"
 #include "esparrag_database.h"
+#include "esparrag_database.h"
+#include "app_data.h"
 #include "esp_netif.h"
 #include "esp_event.h"
 
 class Wifi
 {
 public:
-    Wifi(ConfigDB &db);
     eResult Init();
 
 private:
@@ -22,7 +23,6 @@ private:
 
     esp_netif_t *ap_netif;
     esp_netif_t *sta_netif;
-    ConfigDB &m_db;
     bool internet_connected = false;
     bool failed_connection = false;
 
@@ -31,7 +31,7 @@ private:
                              int32_t event_id,
                              void *event_data);
 
-    void dbConfigChange(const dirty_list_t &list);
+    void dbConfigChange(DB_PARAM_DIRTY_LIST(AppData::Config) list);
 };
 
 #endif
