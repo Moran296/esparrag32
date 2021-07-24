@@ -7,16 +7,6 @@
 #define HTTP_REQUEST_CONTENT_MAX_SIZE 512
 #define DATA_FIELD "\"body\""
 
-cJSON *HttpServer::parseJsonBody(const char *body)
-{
-    ESPARRAG_LOG_INFO("%s", body);
-    char *index = strstr(body, DATA_FIELD);
-    if (!index)
-        return nullptr;
-
-    return cJSON_Parse(index + sizeof(DATA_FIELD));
-}
-
 cJSON *HttpServer::parseHtmlBody(const char *body)
 {
     static char key_buffer[10] = {0};
@@ -84,7 +74,7 @@ esp_err_t HttpServer::requestHandler(httpd_req_t *esp_request)
 
     ESPARRAG_LOG_INFO("handling %s", esp_request->uri);
 
-    cJSON *json_body = server->parseJsonBody(content);
+    cJSON *json_body = cJSON_Parse(content);
     if (json_body == nullptr)
         json_body = server->parseHtmlBody(content);
 
@@ -187,7 +177,7 @@ eResult HttpServer::On(const char *uri,
 
     for (size_t i = 0; i < m_handlers.size(); i++)
     {
-        bool uriMatch = m_handlers[i].uri == uri;
+        bool uriMatch = httpd_uri_match_wildcard(m_handlers[i].uri.data(), uri, strlen(uri));
         bool methodMatch = m_handlers[i].method == method ||
                            m_handlers[i].method == METHOD::GENERAL;
         if (uriMatch && methodMatch)
