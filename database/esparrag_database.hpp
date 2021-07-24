@@ -176,12 +176,13 @@ void Database<DATA_TYPES...>::RestoreDefault()
         std::apply([this](auto &...data)
                    { (this->restoreData(data), ...); },
                    m_data);
+
+        ESPARRAG_ASSERT(eResult::SUCCESS == m_nvs.Erase());
     }
 
-    //consider - instead of commit. delete entire flash namespace and then only publis
-    // ESPARRAG_ASSERT(eResult::SUCCESS == m_nvs.Erase());
-    // publish();
-    Commit();
+    publish();
+    //consider - commit instead of erasing data
+    //Commit();
 }
 
 template <class... DATA_TYPES>

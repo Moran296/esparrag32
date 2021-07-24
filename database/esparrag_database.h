@@ -81,7 +81,6 @@ public:
 
         Note: this function must be called after data changes has been made
     */
-    // TODO: check user commited, at most 3 sec after setting data
     void Commit();
 
     /* Restores all data members to default values.

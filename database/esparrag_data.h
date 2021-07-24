@@ -1,8 +1,8 @@
 #ifndef ESPARRAG_DATA_H__
 #define ESPARRAG_DATA_H__
 
-#include "esparrag_common.h"
 #include <cstring>
+#include "esparrag_common.h"
 
 template <size_t ID, class T>
 struct Data
