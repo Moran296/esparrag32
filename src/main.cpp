@@ -141,7 +141,5 @@ extern "C" void app_main()
                   return eResult::SUCCESS;
               });
 
-    vTaskDelay(5_sec);
-
     vTaskSuspend(nullptr);
 }
