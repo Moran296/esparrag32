@@ -50,8 +50,8 @@ struct Data<ID, const char *>
 
     void *operator&() { return m_val; }
     void operator=(const char *newVal) { strlcpy(m_val, newVal, m_size); }
-    bool operator==(const char *newVal) { return strncmp(m_val, newVal, strlen(newVal)) == 0; }
-    bool operator!=(const char *newVal) { return strncmp(m_val, newVal, strlen(newVal)) != 0; }
+    bool operator==(const char *newVal) { return strcmp(m_val, newVal) == 0; }
+    bool operator!=(const char *newVal) { return strcmp(m_val, newVal) != 0; }
     bool isValid(const char *newVal) { return strlen(newVal) < m_size; }
 };
 
