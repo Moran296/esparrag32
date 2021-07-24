@@ -1,113 +1,142 @@
 #ifndef ESPARRAG_DB__
 #define ESPARRAG_DB__
 
-#include "esparrag_common.h"
-#include "config_entry.h"
-#include "config_table.h"
-#include <utility>
-#include <type_traits>
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/timers.h"
 #include <tuple>
-#include "etl/vector.h"
-#include "etl/delegate.h"
-#include "etl/bitset.h"
-#include "esparrag_nvs.h"
+#include "etl/bitset.h"    //dirty list
+#include "etl/delegate.h"  // subscriber callback
+#include "etl/vector.h"    //subscribers list
+#include "esparrag_data.h" // data struct
+#include "esparrag_nvs.h"  // Save and load from flash. remove and fine solution if generic
 
-static constexpr int MAX_DB_SUBSCRIBERS = 5;
-using dirty_list_t = etl::bitset<CONFIG_ID::NUM>;
-using config_change_cb = etl::delegate<void(const dirty_list_t &)>;
+#define DB_PARAM_DIRTY_LIST(DATABASE) decltype(DATABASE)::dirty_list_t &&
+#define DB_PARAM_CALLBACK(DATABASE) decltype(DATABASE)::db_change_event_cb
 
-class ConfigDB
+template <class... DATA_TYPES>
+class Database
 {
 public:
-    ConfigDB();
-    ~ConfigDB() { ESPARRAG_ASSERT(false); }
+    static constexpr int DB_MAX_SUBSCRIBERS = 10;                  // max num of subscribers
+    static constexpr int MAX_TIME_TO_COMMIT = pdMS_TO_TICKS(5000); // time to commit after change. otherwise assert.
 
-    eResult Init(bool reset = false);
+    using dirty_list_t = etl::bitset<sizeof...(DATA_TYPES)>;                                                 //bitset of changed data members
+    using db_change_event_cb = etl::delegate<void(dirty_list_t &&)>;                                         //callback to be run on publish
+    using subscribers_list_t = etl::vector<etl::pair<dirty_list_t, db_change_event_cb>, DB_MAX_SUBSCRIBERS>; //list of subscribers. subscribed events bitset and callback to run
+
+    /* CTOR - 
+        example: 
+        Database db("new_db",             min max default (persistent = true)
+            Data<0, int>         (10,  20,   15),
+            Data<1, char>        ('a', 'z', 'd', false),  ---> false meaning not persistent 
+            Data<2, const char *>("hello my friend"));
+
+            Note: Data id's must start from 0, be unique, and climb up consistently.
+            Note: default values must be valid (between min and max value)
+            Note: name must be unique and shorter than NVS_KEY_NAME_MAX_SIZE - 1 (15 bytes)
+    */
+    Database(const char *name, DATA_TYPES... args);
+
+    /*Set value to data member.
+        return: true if change took place. false if (new value == old value) or new value is invalid
+        example: db.Set<Data_id>(10); - will work if the data is any integral number (and value is legal for this data)
+        example: db.Set<Data_id>("a new value"); - will work if the data is of string type (and string is shorter than string default len)
+    */
+    template <size_t ID, class TYPE>
+    bool Set(TYPE val);
+
+    /*Set values to data members.
+        This function changes values to all data members supplied and then commits changes
+        example:
+            db.Set<1, 2, 3>(43, 'd', "is for door");
+    */
+    template <size_t... ID, class... TYPE>
+    void Set(TYPE... val);
+
+    /*Get data value
+      example:
+        int x = 0;
+        example: db.Get<Data_id>(x); - will work if the data is an int;
+        const char *p = nullptr;
+        example: db.Get<Data_id>(p); - will work if the data is a str;
+    */
+    template <size_t ID, class TYPE>
+    void Get(TYPE &val);
+
+    /* Get several data members values togather.
+    example:
+        int result = 10;
+        char charResult = 'a';
+        const char *stringResult = nullptr;
+        db.Get<0, 1, 2>(result, charRes, p);
+    */
+    template <size_t... ID, class... TYPE>
+    void Get(TYPE &...val);
+
+    /* Commit changes
+        This function commits all previous changes made by set function.
+        It first writes all changed data to flash,
+        than publish the changes to all relevant subscribers using the bitset dirty_list_t
+
+        Note: this function must be called after data changes has been made
+    */
+    // TODO: check user commited, at most 3 sec after setting data
     void Commit();
-    void Reset();
 
-    template <size_t... CONFIGS>
-    void Subscribe(config_change_cb CB);
+    /* Restores all data members to default values.
+       Note: This function erases all flash namespace and calls publish for changed data
+    */
+    void RestoreDefault();
 
-    template <class VAL_T>
-    eResult Set(CONFIG_ID id, VAL_T val);
+    /* Subscribe to data changes
+    Using this function, caller's callback will be invoked after relevant changes happend.
 
-    template <class... Value>
-    eResult Set(std::pair<CONFIG_ID::enum_type, Value>... changes);
+    example:
+    **create a callback function**
+    auto lambda = [](auto &&dirtyList)  // auto will be deduced as decltype(Database)::dirty_list_t&&
+    {
+        for (size_t i = 0; i < data_ID::NUM; i++)
+        {
+            if (dirtyList[i])
+                LOG_INFO("data %d changed", i);
+        }
+    };
 
-    template <class VAL_T>
-    VAL_T Get(CONFIG_ID::enum_type id) const;
+    **Use the subscribe with relevant data and the generic lambda:**
+    Database.Subscribe<2, 3>(lambda); */
+
+    template <size_t... DATA_ID>
+    void Subscribe(db_change_event_cb callback);
 
 private:
-    const char *configKey(size_t id);
-    void notify_subscribers();
-
-    static configEntry *m_configs[];
-    dirty_list_t m_dirty_list;
-    etl::vector<std::pair<dirty_list_t, config_change_cb>, MAX_DB_SUBSCRIBERS> m_subscribers;
+    std::tuple<DATA_TYPES...> m_data;
     NVS m_nvs;
-    bool m_isInitialized = false;
+    dirty_list_t m_dirtyList;
+    subscribers_list_t m_subscribers;
+    xTimerHandle m_commitTimer;
+    xSemaphoreHandle m_mutex;
 
-    ConfigDB &operator=(const ConfigDB &) = delete;
-    ConfigDB(const ConfigDB &) = delete;
+    template <class DATA>
+    void writeData(DATA &data);
+    void writeToFlash();
+
+    template <class DATA>
+    void readData(DATA &data);
+    void readFromFlash();
+
+    template <class DATA>
+    void restoreData(DATA &data);
+
+    void publish();
+
+    static const char *getKey(int id);
+    static void userFailedToCommit(TimerHandle_t timer);
+
+    Database(Database const &) = delete;
+    Database &operator=(Database const &) = delete;
 };
 
-//Template functions implementation
-template <size_t... CONFIGS>
-void ConfigDB::Subscribe(config_change_cb CB)
-{
-    ESPARRAG_ASSERT(m_subscribers.size() != m_subscribers.capacity());
-    dirty_list_t bitset;
-    (bitset.set(CONFIGS), ...);
-    m_subscribers.push_back(std::make_pair(bitset, CB));
-}
-
-template <class VAL_T>
-eResult ConfigDB::Set(CONFIG_ID id, VAL_T val)
-{
-    ESPARRAG_ASSERT(m_isInitialized);
-    eResult res = eResult::SUCCESS;
-    bool isChanged = false;
-    res = m_configs[id]->set(val, isChanged);
-    if (res != eResult::SUCCESS)
-    {
-        ESPARRAG_LOG_ERROR("set config failed");
-        return res;
-    }
-
-    if (isChanged)
-        m_dirty_list.set(id);
-
-    return eResult::SUCCESS;
-}
-
-template <class... Value>
-eResult ConfigDB::Set(std::pair<CONFIG_ID::enum_type, Value>... changes)
-{
-    ESPARRAG_ASSERT(m_isInitialized);
-    (Set(changes.first, changes.second), ...);
-    Commit();
-    return eResult::SUCCESS;
-}
-
-template <class VAL_T>
-VAL_T ConfigDB::Get(CONFIG_ID::enum_type id) const
-{
-    ESPARRAG_ASSERT(m_isInitialized);
-
-    if constexpr (std::is_class_v<VAL_T>)
-    {
-        typename VAL_T::value_type getter;
-        m_configs[id]->get(getter);
-        return VAL_T(getter);
-    }
-
-    else
-    {
-        VAL_T v;
-        m_configs[id]->get(v);
-        return v;
-    }
-}
+#include "esparrag_database.hpp"
 
 #endif
