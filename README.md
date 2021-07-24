@@ -4,7 +4,7 @@
 
 This project intends to create a common library to be the basic layer of esp32 projects.
 it is written in modern c++ 17, uses esp-idf framework and compiled and built with platformio.
-Nevertheless, this library strives to minimum dynamic allocation and virtual inheritence as they are considered harmful for embedded environments.
+This library strives to minimum dynamic allocation and virtual inheritence as they are considered harmful for embedded environments.
 The only dynamic allocation in the project is the one that is being used in esp-idf framework. The only virtual inheritance is from etlcpp (dependency). 
 
 ### core components
