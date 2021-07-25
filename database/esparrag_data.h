@@ -13,17 +13,12 @@ struct Data
                                                            m_val(defult),
                                                            m_isPersistent(persistent)
     {
-        if constexpr (std::is_class_v<T>)
-            m_size = defult.size();
-        else
-            m_size = sizeof(T);
-
         ESPARRAG_ASSERT(isValid(defult));
         *this = defult;
     }
 
     size_t m_id = ID;
-    size_t m_size;
+    size_t m_size = sizeof(T);
     const T m_max;
     const T m_min;
     const T m_default;
@@ -34,7 +29,14 @@ struct Data
     void operator=(T newVal) { m_val = newVal; }
     bool operator==(T newVal) { return newVal == m_val; }
     bool operator!=(T newVal) { return newVal != m_val; }
-    void *operator&()
+    size_t size() const
+    {
+        if constexpr (std::is_class_v<T>)
+            m_size = m_val.size();
+
+        return m_size;
+    }
+    void *pointer()
     {
         if constexpr (std::is_class_v<T>)
             return m_val.data();
@@ -67,11 +69,12 @@ struct Data<ID, const char *>
     const char *m_default;
     bool m_isPersistent;
 
-    void *operator&() { return m_val; }
     void operator=(const char *newVal) { strlcpy(m_val, newVal, m_size); }
     bool operator==(const char *newVal) { return strcmp(m_val, newVal) == 0; }
     bool operator!=(const char *newVal) { return strcmp(m_val, newVal) != 0; }
     bool isValid(const char *newVal) { return strlen(newVal) < m_size; }
+    size_t size() const { return m_size; }
+    void *pointer() { return m_val; }
 };
 
 #endif
