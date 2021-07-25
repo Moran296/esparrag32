@@ -20,18 +20,18 @@ public:
     ~Button() { ESPARRAG_ASSERT(false); }
 
     void OnPress(button_function_t func);
-    void OnPress(MS time, button_function_t func);
+    void OnPress(MilliSeconds time, button_function_t func);
     void OnRelease(button_function_t func);
-    void OnRelease(MS time, button_function_t func);
+    void OnRelease(MilliSeconds time, button_function_t func);
 
 private:
-    using ImmediatePress = MS(0);
+    using ImmediatePress = MilliSeconds(0);
 
     GPI &m_gpi;
-    etl::vector<std::pair<MS, button_function_t>, MAX_CALLBACKS> m_pressCB;
-    etl::vector<std::pair<MS, button_function_t>, MAX_CALLBACKS> m_releaseCB;
+    etl::vector<std::pair<MilliSeconds, button_function_t>, MAX_CALLBACKS> m_pressCB;
+    etl::vector<std::pair<MilliSeconds, button_function_t>, MAX_CALLBACKS> m_releaseCB;
     bool m_state;
-    uS m_pressedTime(0);
+    MicroSeconds m_pressedTime(0);
     xTimerHandle m_timer = nullptr;
 
     Button(Button &b) = delete;
@@ -43,7 +43,7 @@ class TwoButtons
 public:
     TwoButtons(Button &b1, Button &b2) : m_b1(b1), m_b2(b2) {}
     void OnPress(button_function_t func);
-    void OnPress(MS time, button_function_t func);
+    void OnPress(MilliSeconds time, button_function_t func);
 
 private:
     etl::vector<std::pair<int, button_function_t>, MAX_CALLBACKS> m_callbacks;

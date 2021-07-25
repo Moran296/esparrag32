@@ -50,46 +50,6 @@ const char indx[] = {
     0x3e, 0x0d, 0x0a, 0x20, 0x20, 0x3c, 0x2f, 0x62, 0x6f, 0x64, 0x79, 0x3e,
     0x0d, 0x0a, 0x3c, 0x2f, 0x68, 0x74, 0x6d, 0x6c, 0x3e, 0};
 
-class Debouncer
-{
-public:
-    Debouncer(const int64_t debounce_time_usec = 100000) : debounce_time(debounce_time_usec),
-                                                           last_sample(esp_timer_get_time()) {}
-    bool IsValidNow()
-    {
-        if (esp_timer_get_time() - last_sample > debounce_time)
-        {
-            last_sample = esp_timer_get_time();
-            return true;
-        }
-
-        return false;
-    }
-
-private:
-    const int64_t debounce_time;
-    int64_t last_sample;
-};
-
-bool state;
-std::atomic<int> presses = 0;
-std::atomic<int> releases = 0;
-
-void ISR(void *arg)
-{
-    static int64_t last_sample = esp_timer_get_time();
-    if (esp_timer_get_time() - last_sample > 100000)
-    {
-        state = !state;
-        if (state)
-            presses++;
-        else
-            releases++;
-
-        last_sample = esp_timer_get_time();
-    }
-}
-
 extern "C" void app_main()
 {
 
