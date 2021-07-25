@@ -11,9 +11,20 @@ struct Data
                                                            m_min(min),
                                                            m_default(defult),
                                                            m_val(defult),
-                                                           m_isPersistent(persistent)
+                                                           m_isPersistent(persistent),
+                                                           m_isLimited(true)
     {
         ESPARRAG_ASSERT(isValid(defult));
+        *this = defult;
+    }
+
+    Data(T defult, bool persistent = true) : m_max(),
+                                             m_min(),
+                                             m_default(defult),
+                                             m_val(defult),
+                                             m_isPersistent(persistent),
+                                             m_isLimited(false)
+    {
         *this = defult;
     }
 
@@ -24,6 +35,7 @@ struct Data
     const T m_default;
     T m_val;
     bool m_isPersistent;
+    bool m_isLimited;
 
     //if data is a class, it must overload next operators and data(), size(), value()
     void operator=(T newVal) { m_val = newVal; }
@@ -46,6 +58,9 @@ struct Data
 
     bool isValid(T newVal)
     {
+        if (!m_isLimited)
+            return true;
+
         if constexpr (std::is_class_v<T>)
             return (newVal.value() <= m_max.value() && newVal.value() >= m_min.value());
         else
