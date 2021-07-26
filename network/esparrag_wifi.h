@@ -4,7 +4,7 @@
 #include "esparrag_common.h"
 #include "esparrag_database.h"
 #include "esparrag_database.h"
-#include "app_data.h"
+#include "esparrag_settings.h"
 #include "esp_netif.h"
 #include "esp_event.h"
 
@@ -31,7 +31,7 @@ private:
                              int32_t event_id,
                              void *event_data);
 
-    void dbConfigChange(DB_PARAM_DIRTY_LIST(AppData::Config) list);
+    void dbConfigChange(DB_PARAM_DIRTY_LIST(Settings::Config) list);
 };
 
 #endif

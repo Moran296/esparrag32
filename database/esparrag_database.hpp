@@ -38,9 +38,11 @@ template <size_t ID, class TYPE>
 bool Database<DATA_TYPES...>::Set(TYPE val)
 {
     Lock lock(m_mutex);
-    auto &data = std::get<Data<ID, TYPE>>(m_data);
+    //auto &data = std::get<Data<ID, TYPE>>(m_data); --> this allow more explicit type enforcing
+    auto &data = std::get<ID>(m_data);
     if (data == val)
     {
+        ESPARRAG_LOG_DEBUG("data id %d equal, won't set", ID);
         return false;
     }
 
@@ -69,7 +71,8 @@ template <size_t ID, class TYPE>
 void Database<DATA_TYPES...>::Get(TYPE &val)
 {
     Lock lock(m_mutex);
-    auto &c = std::get<Data<ID, TYPE>>(m_data);
+    //auto &c = std::get<Data<ID, TYPE>>(m_data); --> this allow more explicit type enforcing
+    auto &c = std::get<ID>(m_data);
     val = c.m_val;
 }
 

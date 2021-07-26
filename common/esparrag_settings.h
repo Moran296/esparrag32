@@ -52,7 +52,7 @@ enum eWifiState
     WIFI_NUM
 };
 
-class AppData
+class Settings
 {
 public:
     inline static Database Config{"config_db",

@@ -42,7 +42,7 @@ struct Data
     T m_val;
     bool m_isPersistent;
 
-    //if data is a class, it must overload next operators and data(), size(), value()
+    //if data is a class, it must overload all operators, data and size
     void operator=(T newVal) { m_val = newVal; }
     bool operator==(T newVal) { return newVal == m_val; }
     bool operator!=(T newVal) { return newVal != m_val; }
@@ -52,7 +52,7 @@ struct Data
     void *operator&()
     {
         if constexpr (std::is_class_v<T>)
-            return &m_val.data();
+            return m_val.data();
         else
             return &m_val;
     }
