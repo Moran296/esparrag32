@@ -109,7 +109,7 @@ void Database<DATA_TYPES...>::writeData(DATA &data)
         return;
 
     const char *key = getKey(data.m_id);
-    eResult res = m_nvs.SetBlob(key, data.pointer(), data.size());
+    eResult res = m_nvs.SetBlob(key, &data, data.size());
     if (res != eResult::SUCCESS)
         ESPARRAG_LOG_ERROR("write flash failed. data %d", data.m_id);
 }
@@ -123,8 +123,6 @@ void Database<DATA_TYPES...>::writeToFlash()
                m_data);
 }
 
-#include <type_traits>
-
 template <class... DATA_TYPES>
 template <class DATA>
 void Database<DATA_TYPES...>::readData(DATA &data)
@@ -134,17 +132,17 @@ void Database<DATA_TYPES...>::readData(DATA &data)
 
     const char *key = getKey(data.m_id);
     size_t actualLen = 0;
-    eResult res = m_nvs.GetBlob(key, data.pointer(), data.size(), actualLen);
+    eResult res = m_nvs.GetBlob(key, &data, data.capacity(), actualLen);
     if (res != eResult::SUCCESS && res != eResult::ERROR_FLASH_NOT_FOUND)
         ESPARRAG_LOG_ERROR("problem reading flash");
     else if (actualLen > 0)
         ESPARRAG_LOG_INFO("data %d read from flash - %d bytes", data.m_id, actualLen);
 
-    // protect from size of data change between versions. (This mechanism limits string data to have fixed size in flash)
-    if (res == eResult::SUCCESS && actualLen != data.size())
+    if (!data.isValid(data.m_val))
     {
-        ESPARRAG_LOG_WARNING("detected size conflict in data %d. restoring default", data.m_id);
-        data = data.m_default;
+        ESPARRAG_LOG_ERROR("data id %d read from flash not valid. restoring default", data.m_id);
+        restoreData(data);
+        m_dirtyList.set(data.m_id, false);
     }
 }
 

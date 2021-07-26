@@ -7,64 +7,62 @@
 template <size_t ID, class T>
 struct Data
 {
-    Data(T min, T max, T defult, bool persistent = true) : m_max(max),
+    Data(T min, T max, T defult, bool persistent = true) : m_size(sizeof(T)),
+                                                           m_max(max),
                                                            m_min(min),
                                                            m_default(defult),
                                                            m_val(defult),
-                                                           m_isPersistent(persistent),
-                                                           m_isLimited(true)
+                                                           m_isPersistent(persistent)
     {
+        if constexpr (std::is_class_v<T>)
+            m_size = m_val.size();
+
         ESPARRAG_ASSERT(isValid(defult));
         *this = defult;
     }
 
-    Data(T defult, bool persistent = true) : m_max(),
+    Data(T defult, bool persistent = true) : m_size(sizeof(T)),
+                                             m_max(),
                                              m_min(),
                                              m_default(defult),
                                              m_val(defult),
-                                             m_isPersistent(persistent),
-                                             m_isLimited(false)
+                                             m_isPersistent(persistent)
     {
+        if constexpr (std::is_class_v<T>)
+            m_size = m_val.size();
+
         *this = defult;
     }
 
     size_t m_id = ID;
-    size_t m_size = sizeof(T);
+    size_t m_size;
     const T m_max;
     const T m_min;
     const T m_default;
     T m_val;
     bool m_isPersistent;
-    bool m_isLimited;
 
     //if data is a class, it must overload next operators and data(), size(), value()
     void operator=(T newVal) { m_val = newVal; }
     bool operator==(T newVal) { return newVal == m_val; }
     bool operator!=(T newVal) { return newVal != m_val; }
-    size_t size() const
-    {
-        if constexpr (std::is_class_v<T>)
-            m_size = m_val.size();
+    size_t size() const { return m_size; }
+    size_t capacity() const { return size(); }
 
-        return m_size;
-    }
-    void *pointer()
+    void *operator&()
     {
         if constexpr (std::is_class_v<T>)
-            return m_val.data();
+            return &m_val.data();
         else
             return &m_val;
     }
 
     bool isValid(T newVal)
     {
-        if (!m_isLimited)
+        if (m_max == m_min)
             return true;
 
-        if constexpr (std::is_class_v<T>)
-            return (newVal.value() <= m_max.value() && newVal.value() >= m_min.value());
-        else
-            return (newVal <= m_max && newVal >= m_min);
+        return (newVal <= m_max && newVal >= m_min);
     }
 };
 
@@ -87,8 +85,9 @@ struct Data<ID, const char *>
     void operator=(const char *newVal) { strlcpy(m_val, newVal, m_size); }
     bool operator==(const char *newVal) { return strcmp(m_val, newVal) == 0; }
     bool operator!=(const char *newVal) { return strcmp(m_val, newVal) != 0; }
-    bool isValid(const char *newVal) { return strlen(newVal) < m_size; }
-    size_t size() const { return m_size; }
+    bool isValid(const char *newVal) { return strlen(newVal) < capacity(); }
+    size_t size() const { return strlen(m_val); }
+    size_t capacity() const { return m_size; }
     void *pointer() { return m_val; }
 };
 

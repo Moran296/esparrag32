@@ -25,11 +25,11 @@ public:
     using db_change_event_cb = etl::delegate<void(dirty_list_t &&)>;                                         //callback to be run on publish
     using subscribers_list_t = etl::vector<etl::pair<dirty_list_t, db_change_event_cb>, DB_MAX_SUBSCRIBERS>; //list of subscribers. subscribed events bitset and callback to run
 
-    /* CTOR - 
-        example: 
+    /* CTOR -
+        example:
         Database db("new_db",             min max default (persistent = true)
             Data<0, int>         (10,  20,   15),
-            Data<1, char>        ('a', 'z', 'd', false),  ---> false meaning not persistent 
+            Data<1, char>        ('a', 'z', 'd', false),  ---> false meaning not persistent
             Data<2, const char *>("hello my friend"));
 
             Note: Data id's must start from 0, be unique, and climb up consistently.
