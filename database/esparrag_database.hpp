@@ -71,8 +71,8 @@ template <size_t ID, class TYPE>
 void Database<DATA_TYPES...>::Get(TYPE &val)
 {
     Lock lock(m_mutex);
-    //auto &c = std::get<Data<ID, TYPE>>(m_data); --> this allow more explicit type enforcing
-    auto &c = std::get<ID>(m_data);
+    auto &c = std::get<Data<ID, TYPE>>(m_data); //--> this allow more explicit type enforcing
+    //auto &c = std::get<ID>(m_data);
     val = c.m_val;
 }
 

@@ -4,65 +4,55 @@
 #include <cstring>
 #include "esparrag_common.h"
 
+#define TERNARY_RETURN_CONSTEXPR(CONDITION, TRUE_TYPE, FALSE_TYPE) \
+    if constexpr (CONDITION)                                       \
+        return TRUE_TYPE;                                          \
+    else                                                           \
+        return FALSE_TYPE
+
 template <size_t ID, class T>
 struct Data
 {
-    Data(T min, T max, T defult, bool persistent = true) : m_size(sizeof(T)),
-                                                           m_max(max),
+    Data(T min, T max, T defult, bool persistent = true) : m_max(max),
                                                            m_min(min),
                                                            m_default(defult),
                                                            m_val(defult),
                                                            m_isPersistent(persistent)
     {
-        if constexpr (std::is_class_v<T>)
-            m_size = m_val.size();
-
         ESPARRAG_ASSERT(isValid(defult));
         *this = defult;
     }
 
-    Data(T defult, bool persistent = true) : m_size(sizeof(T)),
-                                             m_max(),
+    Data(T defult, bool persistent = true) : m_max(),
                                              m_min(),
                                              m_default(defult),
                                              m_val(defult),
                                              m_isPersistent(persistent)
     {
-        if constexpr (std::is_class_v<T>)
-            m_size = m_val.size();
-
         *this = defult;
     }
 
     size_t m_id = ID;
-    size_t m_size;
     const T m_max;
     const T m_min;
     const T m_default;
     T m_val;
     bool m_isPersistent;
 
-    //if data is a class, it must overload all operators, data and size
+    //if data is a class, it must overload all operators <, ==, data(T*), capacity and size
     void operator=(T newVal) { m_val = newVal; }
     bool operator==(T newVal) { return newVal == m_val; }
-    bool operator!=(T newVal) { return newVal != m_val; }
-    size_t size() const { return m_size; }
-    size_t capacity() const { return size(); }
+    bool operator!=(T newVal) { return !(newVal == m_val); }
+    size_t size() const { TERNARY_RETURN_CONSTEXPR(std::is_class_v<T>, m_val.size(), sizeof(T)); }
+    size_t capacity() const { TERNARY_RETURN_CONSTEXPR(std::is_class_v<T>, m_val.capacity(), sizeof(T)); }
+    void *operator&() { TERNARY_RETURN_CONSTEXPR(std::is_class_v<T>, m_val.data(), &m_val); }
 
-    void *operator&()
-    {
-        if constexpr (std::is_class_v<T>)
-            return m_val.data();
-        else
-            return &m_val;
-    }
-
-    bool isValid(T newVal)
+    bool isValid(const T &newVal)
     {
         if (m_max == m_min)
             return true;
 
-        return (newVal <= m_max && newVal >= m_min);
+        return (m_min < newVal || m_min == newVal) && (newVal < m_max || newVal == m_max);
     }
 };
 
