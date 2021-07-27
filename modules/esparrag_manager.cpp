@@ -16,7 +16,6 @@ void EsparragManager::entryFunction(void *arg)
 
 void EsparragManager::Run()
 {
-    initComponents();
     BaseType_t res = xTaskCreatePinnedToCore(entryFunction, "esparrag-manager", 8192, this, 3, &m_task, tskNO_AFFINITY);
     ESPARRAG_ASSERT(res == pdPASS);
 }
@@ -33,6 +32,8 @@ void EsparragManager::initComponents()
 
 void EsparragManager::handleEvents()
 {
+    initComponents();
+
     ESPARRAG_LOG_INFO("running manager");
     for (;;)
     {
