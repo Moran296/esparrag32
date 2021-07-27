@@ -11,25 +11,35 @@
 #include "freertos/task.h"
 #include "freertos/timers.h"
 #include "freertos/event_groups.h"
+#include "esp_bit_defs.h"
 
 class EsparragManager
 {
 public:
-    void
-    Run() {}
+    enum eEsparragEvents
+    {
+        CONFIG_COMMIT = BIT(0),
+        STATUS_COMMIT = BIT(1)
+    };
 
-    eResult Execute(etl::delegate<void(void)> func, MilliSeconds delay = 0);
+    EsparragManager();
+    void Run();
 
 private:
     static void entryFunction(void *arg);
+    void setEvent(eEsparragEvents event);
     void initComponents();
     void handleEvents();
+    void handleCredentials();
 
     TaskHandle_t m_task;
     EventGroupHandle_t m_eventGroup;
     Wifi m_wifi;
     HttpServer m_server;
-    Executioner<etl::delegate<void(void)>> m_executioner;
+
+    EsparragManager(EsparragManager const &) = delete;
+    EsparragManager &operator=(EsparragManager const &) = delete;
+    //Executioner<etl::delegate<void(void)>> m_executioner;
 };
 
 #endif
