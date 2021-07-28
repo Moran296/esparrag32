@@ -3,52 +3,109 @@
 
 #include "esparrag_common.h"
 #include "esparrag_time_units.h"
+#include "esparrag_log.h"
 #include "esparrag_gpio.h"
-#include "etl/delegate"
-#include "etl/vector"
+#include "etl/array.h"
+#include "etl/fsm.h"
+#include "etl/enum_type.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
 
-class Button
+struct ButtonEvent
 {
-public:
-    static constexpr MAX_CALLBACKS = 3;
-    using button_function_t = etl::delegate<void(void)>;
-    friend class TwoButtons;
+    enum enum_type {
+    PRESS,
+    RELEASE,
+    TIMER_EVENT,
+    NUM
+    };
 
-    Button(GPI &gpi) : m_gpi(gpi), m_state((m_gpi)) {}
-    ~Button() { ESPARRAG_ASSERT(false); }
-
-    void OnPress(button_function_t func);
-    void OnPress(MilliSeconds time, button_function_t func);
-    void OnRelease(button_function_t func);
-    void OnRelease(MilliSeconds time, button_function_t func);
-
-private:
-    using ImmediatePress = MilliSeconds(0);
-
-    GPI &m_gpi;
-    etl::vector<std::pair<MilliSeconds, button_function_t>, MAX_CALLBACKS> m_pressCB;
-    etl::vector<std::pair<MilliSeconds, button_function_t>, MAX_CALLBACKS> m_releaseCB;
-    bool m_state;
-    MicroSeconds m_pressedTime(0);
-    xTimerHandle m_timer = nullptr;
-
-    Button(Button &b) = delete;
-    Button &operator==(Button &b) = delete;
+    //ETL_DECLARE_ENUM_TYPE()
 };
 
-class TwoButtons
-{
-public:
-    TwoButtons(Button &b1, Button &b2) : m_b1(b1), m_b2(b2) {}
-    void OnPress(button_function_t func);
-    void OnPress(MilliSeconds time, button_function_t func);
+const etl::message_router_id_t BUTTON_ROUTER = 0;
+const etl::message_router_id_t TWO_BUTTONS_ROUTER = 1;
 
-private:
-    etl::vector<std::pair<int, button_function_t>, MAX_CALLBACKS> m_callbacks;
-    Button &m_b1;
-    Button &m_b2;
+class PressEvent : public etl::message<ButtonEvent::PRESS> {};
+class ReleaseEvent : public etl::message<ButtonEvent::RELEASE> {};
+class TimerEvent : public etl::message<ButtonEvent::TIMER_EVENT> {};
+class InvalidEvent : public etl::message<ButtonEvent::NUM> {};
+
+struct eStateId{
+    enum  enum_type{
+        IDLE,
+        PRESSED,
+        PRESSED_SHORT,
+        PRESSED_LONG,
+        NUM
+    };
 };
+
+#define RELEASED_AFTER(PRESSED_STATE) (eStateId::PRESSED_STATE * 2) //for indexing
+
+struct buttonCB {
+    void(*m_cb)(void*) = nullptr;
+    void* arg = nullptr;
+    MilliSeconds m_ms = 0;
+};
+
+static constexpr int MAX_CALLBACKS = eStateId::NUM * 2;
+using callback_list_t = etl::array<buttonCB, MAX_CALLBACKS>;
+
+class BUTTON : public etl::fsm
+{
+    public:
+    BUTTON(GPI& gpi);
+
+
+    private:
+    GPI& m_gpi;
+    callback_list_t m_callbacks{};
+    xTimerHandle m_timer{};
+    bool ignoreNextRelease = false;
+
+
+    void runCallback(int index);
+    void stopTimer();
+    void startShortPressTimer();
+    void startLongPressTimer();
+    void ignoreNextRelease();
+
+    static void buttonISR(void* arg);
+    friend class IdleState;
+    friend class PressedState;
+    friend class PressedShortState;
+    friend class PressedLongState;
+};
+
+class TWO_BUTTONS : public etl::fsm
+{
+    public:
+    TWO_BUTTONS(BUTTON& b1, BUTTON& b2);
+
+    private:
+    BUTTON& m_b1;
+    BUTTON& m_b2;
+    callback_list_t m_callbacks{};
+    bool ignoreNextRelease = false;
+
+    void runCallback(int index);
+    void stopTimer();
+    void startShortPressTimer();
+    void startLongPressTimer();
+    void ignoreNextRelease();
+
+    static void buttonISR(void* arg);
+    friend class IdleState2B;
+    friend class PressedState2B;
+    friend class PressedShortState2B;
+    friend class PressedLongState2B;
+};
+
+
+
+
+
+
 
 #endif
