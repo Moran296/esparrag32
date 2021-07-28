@@ -8,6 +8,7 @@
 #include "esparrag_http.h"
 #include "esparrag_wifi.h"
 #include "esparrag_manager.h"
+#include "esparrag_button.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <atomic>
@@ -15,8 +16,48 @@
 #include "esparrag_settings.h"
 #include "executioner.h"
 
+#define FAST_PRESS 1
+#define SHORT_PRESS 2
+#define LONG_PRESS 3
+#define FAST_RELEASE 4
+#define SHORT_RELEASE 5
+#define LONG_RELEASE 6
+
+void goo(void *arg, uint32_t hello)
+{
+    switch (hello)
+    {
+    case FAST_PRESS:
+        ESPARRAG_LOG_INFO("fast press");
+        break;
+    case SHORT_PRESS:
+        ESPARRAG_LOG_INFO("short press");
+        break;
+    case LONG_PRESS:
+        ESPARRAG_LOG_INFO("long press");
+        break;
+    case FAST_RELEASE:
+        ESPARRAG_LOG_INFO("fast release");
+        break;
+    case SHORT_RELEASE:
+        ESPARRAG_LOG_INFO("short release");
+        break;
+    case LONG_RELEASE:
+        ESPARRAG_LOG_INFO("long release");
+        break;
+    default:
+        ESPARRAG_LOG_INFO("whaaaaattt");
+    }
+}
+
 extern "C" void app_main()
 {
+    GPI gpi(2, GPIO_INTR_ANYEDGE);
+    BUTTON b(gpi);
+    BUTTON::buttonCB press_fast = {.m_cb = goo, .arg2 = FAST_PRESS};
+    BUTTON::buttonCB release_fast = {.m_cb = goo, .arg2 = FAST_RELEASE};
+    b.RegisterPress(std::move(press_fast));
+    b.RegisterRelease(std::move(release_fast));
 
     EsparragManager manager;
     manager.Run();

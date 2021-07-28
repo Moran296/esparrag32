@@ -52,6 +52,7 @@ public:
         bool pulldown = false);
 
     explicit operator bool() const;
+    bool IsActive() const;
     eResult DisableInterrupt();
     eResult EnableInterrupt(isr_func_t isrEventHandler, void *arg);
 
