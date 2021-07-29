@@ -14,6 +14,7 @@
 #include <atomic>
 #include "esparrag_time_units.h"
 #include "esparrag_settings.h"
+#include "esparrag_two_buttons.h"
 #include "executioner.h"
 
 #define FAST_PRESS 1
@@ -45,6 +46,12 @@ void goo(void *arg, uint32_t hello)
     case LONG_RELEASE:
         ESPARRAG_LOG_INFO("long release");
         break;
+    case 12:
+        ESPARRAG_LOG_INFO("fast press two buttons");
+        break;
+    case 13:
+        ESPARRAG_LOG_INFO("fast release two buttons");
+        break;
     default:
         ESPARRAG_LOG_INFO("whaaaaattt");
     }
@@ -52,20 +59,29 @@ void goo(void *arg, uint32_t hello)
 
 extern "C" void app_main()
 {
-    GPI gpi(17, GPIO_INTR_ANYEDGE);
-    BUTTON b(gpi);
+    GPI gpi1(17, GPIO_INTR_ANYEDGE);
+    GPI gpi2(18, GPIO_INTR_ANYEDGE);
+    BUTTON a(gpi1);
     BUTTON::buttonCB press_fast = {.m_cb = goo, .arg2 = FAST_PRESS};
     BUTTON::buttonCB release_fast = {.m_cb = goo, .arg2 = FAST_RELEASE};
     BUTTON::buttonCB press_short = {.m_cb = goo, .arg2 = SHORT_PRESS, .m_ms = Seconds(3)};
     BUTTON::buttonCB release_short = {.m_cb = goo, .arg2 = SHORT_RELEASE, .m_ms = Seconds(3)};
     BUTTON::buttonCB press_long = {.m_cb = goo, .arg2 = LONG_PRESS, .m_ms = Seconds(5)};
     BUTTON::buttonCB release_long = {.m_cb = goo, .arg2 = LONG_RELEASE, .m_ms = Seconds(5)};
-     b.RegisterPress(std::move(press_fast));
-    // b.RegisterRelease(std::move(release_fast));
-    b.RegisterPress(std::move(press_short));
-    // b.RegisterRelease(std::move(release_short));
-    // b.RegisterPress(std::move(press_long));
-    // b.RegisterRelease(std::move(release_long));
+
+    a.RegisterPress(std::move(press_fast));
+    a.RegisterRelease(std::move(release_fast));
+    a.RegisterPress(std::move(press_short));
+    a.RegisterRelease(std::move(release_short));
+    a.RegisterPress(std::move(press_long));
+    a.RegisterRelease(std::move(release_long));
+
+    BUTTON bb(gpi2);
+    BUTTON::buttonCB press_fast2 = {.m_cb = goo, .arg2 = 12};
+    BUTTON::buttonCB release_fast2 = {.m_cb = goo, .arg2 = 13};
+    TWO_BUTTONS butt(a, bb);
+    butt.RegisterPress(std::move(press_fast2));
+    butt.RegisterRelease(std::move(release_fast2));
 
     EsparragManager manager;
     manager.Run();

@@ -5,6 +5,7 @@
 #include "esparrag_time_units.h"
 #include "esparrag_log.h"
 #include "esparrag_gpio.h"
+#include "etl/instance_count.h"
 #include "etl/array.h"
 #include "etl/fsm.h"
 #include "etl/enum_type.h"
@@ -20,13 +21,7 @@ struct ButtonEvent
         TIMER_EVENT,
         NUM
     };
-
-    //ETL_DECLARE_ENUM_TYPE()
 };
-
-//find solution for this
-const etl::message_router_id_t BUTTON_ROUTER = 0;
-const etl::message_router_id_t TWO_BUTTONS_ROUTER = 1;
 
 class PressEvent : public etl::message<ButtonEvent::PRESS>
 {
@@ -53,7 +48,7 @@ struct eStateId
     };
 };
 
-class BUTTON : public etl::fsm
+class BUTTON : public etl::fsm, public etl::instance_count<BUTTON>
 {
 public:
     struct buttonCB
@@ -76,14 +71,14 @@ private:
     callback_list_t m_pressCallbacks{};
     callback_list_t m_releaseCallbacks{};
     xTimerHandle m_timer{};
-    bool m_ignoreNextRelease = false;
-    MicroSeconds m_pressTime{};
+    bool m_buttonState = false;
+    MicroSeconds m_lastPressTime{};
 
     void runPressCallback(uint8_t index);
     void runReleaseCallback();
     void stopTimer(bool fromISR = false);
-    void startTimer(int index, bool fromISR = false);
-    eResult registerEvent(buttonCB &&cb, callback_list_t& list);
+    void startTimer(int index);
+    eResult registerEvent(buttonCB &&cb, callback_list_t &list);
 
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
@@ -93,6 +88,7 @@ private:
     friend class PressedState;
     friend class PressedShortState;
     friend class PressedLongState;
+    friend class TWO_BUTTONS;
 };
 
 // class TWO_BUTTONS : public etl::fsm

@@ -1,10 +1,6 @@
 #include "esparrag_button.h"
 #include "debouncer.h"
-#define RELEASED_AFTER(PRESSED_STATE) (PRESSED_STATE * 2) //for indexing
-#define PRESS_MODIFIER 1
-#define RELEASE_MODIFIER 2
 
-//========================== BUTTON =============================
 class IdleState : public etl::fsm_state<BUTTON, IdleState, eStateId::IDLE,
                                         PressEvent>
 {
@@ -12,24 +8,21 @@ public:
     etl::fsm_state_id_t
     on_enter_state()
     {
-        ets_printf("in idle state\n");
         return STATE_ID;
     }
 
     etl::fsm_state_id_t
     on_event(const PressEvent &event)
     {
-        ets_printf("idle got press\n");
         auto &button = get_fsm_context();
-        button.m_pressTime = esp_timer_get_time();
-        button.runCallback(eStateId::PRESSED);
+        button.m_lastPressTime = esp_timer_get_time();
+        button.runPressCallback(eStateId::PRESSED);
         return eStateId::PRESSED;
     }
 
     etl::fsm_state_id_t
     on_event_unknown(const etl::imessage &event)
     {
-        ets_printf("idle got release\n");
         return STATE_ID;
     }
 };
@@ -41,39 +34,32 @@ public:
     etl::fsm_state_id_t
     on_enter_state()
     {
-        ets_printf("in pressed state\n");
         auto &button = get_fsm_context();
-        button.startTimer(eStateId::PRESSED_SHORT, true);
+        button.startTimer(eStateId::PRESSED_SHORT);
         return STATE_ID;
     }
 
     etl::fsm_state_id_t
     on_event(const ReleaseEvent &event)
     {
-        //Release after fast duration press
-        ets_printf("pressed got release\n");
         auto &button = get_fsm_context();
         button.stopTimer(true);
-        if (!button.m_ignoreNextRelease)
-            button.runCallback(RELEASED_AFTER(eStateId::PRESSED));
+        button.runReleaseCallback();
         return eStateId::IDLE;
     }
 
     etl::fsm_state_id_t
     on_event(const TimerEvent &event)
     {
-        //I am in pressed state and timer called - button was pressed short
-        ets_printf("pressed got timer\n");
         auto &button = get_fsm_context();
-        button.runCallback(eStateId::PRESSED_SHORT);
+        button.runPressCallback(eStateId::PRESSED_SHORT);
         return eStateId::PRESSED_SHORT;
     }
 
     etl::fsm_state_id_t
     on_event_unknown(const etl::imessage &event)
     {
-        //ESPARRAG_LOG_ERROR("unknown event in pressed state");
-        ets_printf("pressed got unknown\n");
+        ets_printf("pressed unknown %d\n", (uint8_t)get_state_id());
         return STATE_ID;
     }
 };
@@ -85,39 +71,32 @@ public:
     etl::fsm_state_id_t
     on_enter_state()
     {
-        ets_printf("in pressed short state\n");
         auto &button = get_fsm_context();
-        button.startTimer(eStateId::PRESSED_LONG, true);
+        button.startTimer(eStateId::PRESSED_LONG);
         return STATE_ID;
     }
 
     etl::fsm_state_id_t
     on_event(const ReleaseEvent &event)
     {
-        //Release after short duration press
-        ets_printf("release timer\n");
         auto &button = get_fsm_context();
         button.stopTimer();
-        if (!button.m_ignoreNextRelease)
-            button.runCallback(RELEASED_AFTER(eStateId::PRESSED_SHORT));
+        button.runReleaseCallback();
         return eStateId::IDLE;
     }
 
     etl::fsm_state_id_t
     on_event(const TimerEvent &event)
     {
-        //I am in pressed short state and timer called - button was pressed long
-        ets_printf("short timer\n");
         auto &button = get_fsm_context();
-        button.runCallback(eStateId::PRESSED_LONG);
+        button.runPressCallback(eStateId::PRESSED_LONG);
         return eStateId::PRESSED_LONG;
     }
 
     etl::fsm_state_id_t
     on_event_unknown(const etl::imessage &event)
     {
-        //ESPARRAG_LOG_ERROR("unknown event in pressedShortState state");
-        ets_printf("short unknown\n");
+        ets_printf("short unknown %d\n", (uint8_t)get_state_id());
         return STATE_ID;
     }
 };
@@ -129,7 +108,6 @@ public:
     etl::fsm_state_id_t
     on_enter_state()
     {
-        ets_printf("in long pressed state\n");
         auto &button = get_fsm_context();
         button.stopTimer();
         return STATE_ID;
@@ -140,16 +118,14 @@ public:
     {
         //Release after long duration press
         auto &button = get_fsm_context();
-        button.stopTimer();
-        if (!button.m_ignoreNextRelease)
-            button.runCallback(RELEASED_AFTER(eStateId::PRESSED_LONG));
+        button.runReleaseCallback();
         return eStateId::IDLE;
     }
 
     etl::fsm_state_id_t
     on_event_unknown(const etl::imessage &event)
     {
-        //ESPARRAG_LOG_ERROR("unknown event in pressedLongState state");
+        ets_printf("unknown long pressed\n");
         return STATE_ID;
     }
 };
@@ -159,21 +135,28 @@ static PressedState m_pressed;
 static PressedShortState m_pressedShort;
 static PressedLongState m_pressedLong;
 
-BUTTON::BUTTON(GPI &gpi) : fsm(BUTTON_ROUTER), m_gpi(gpi)
+BUTTON::BUTTON(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 {
     eResult res = m_gpi.EnableInterrupt(buttonISR, this);
+    m_buttonState = m_gpi.IsActive();
+    if (m_buttonState)
+    {
+        ESPARRAG_LOG_ERROR("button state on, on startup");
+        ESPARRAG_ASSERT(m_buttonState == false);
+    }
+
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
     m_timer = xTimerCreate("button", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
-    stateList[0] = &m_idle;
-    stateList[1] = &m_pressed;
-    stateList[2] = &m_pressedShort;
-    stateList[3] = &m_pressedLong;
+    stateList[eStateId::IDLE] = &m_idle;
+    stateList[eStateId::PRESSED] = &m_pressed;
+    stateList[eStateId::PRESSED_SHORT] = &m_pressedShort;
+    stateList[eStateId::PRESSED_LONG] = &m_pressedLong;
     set_states(stateList, etl::size(stateList));
     start();
 }
 
-eResult BUTTON::registerEvent(buttonCB &&cb, callback_list_t& list)
+eResult BUTTON::registerEvent(buttonCB &&cb, callback_list_t &list)
 {
     ESPARRAG_ASSERT(cb.m_cb != nullptr);
     if (cb.m_ms.value() == 0)
@@ -225,21 +208,31 @@ void BUTTON::runPressCallback(uint8_t index)
     auto &callback = m_pressCallbacks[index];
     if (callback.m_cb != nullptr)
     {
-        ets_printf("lets run func\n");
-        BaseType_t higher;
-        xTimerPendFunctionCallFromISR(callback.m_cb, callback.arg, callback.arg2, &higher);
-        portYIELD_FROM_ISR(higher);
+        BaseType_t higherPriorityExists;
+        xTimerPendFunctionCallFromISR(callback.m_cb, callback.arg, callback.arg2, &higherPriorityExists);
+        YIELD_FROM_ISR_IF(higherPriorityExists);
     }
 }
 
 void BUTTON::runReleaseCallback()
 {
-    MicroSeconds timeNow = esp_timer_get_time();
-    for (size_t i = eStateId::PRESSED; i < eStateId::NUM; i++)
-    {
-        if ()
-    }
+    ESPARRAG_ASSERT(esp_timer_get_time() > m_lastPressTime.value())
+    MicroSeconds timePassedSincePress = MicroSeconds(esp_timer_get_time()) - m_lastPressTime;
 
+    for (size_t i = eStateId::PRESSED_LONG; i > eStateId::IDLE; i--)
+    {
+        auto &callback = m_releaseCallbacks[i];
+        if (callback.m_cb != nullptr)
+        {
+            if (timePassedSincePress >= callback.m_ms)
+            {
+                BaseType_t higherPriorityExists;
+                xTimerPendFunctionCallFromISR(callback.m_cb, callback.arg, callback.arg2, &higherPriorityExists);
+                YIELD_FROM_ISR_IF(higherPriorityExists);
+                return;
+            }
+        }
+    }
 }
 
 void BUTTON::stopTimer(bool fromISR)
@@ -250,58 +243,32 @@ void BUTTON::stopTimer(bool fromISR)
         xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
 }
 
-void BUTTON::startTimer(int index, bool fromISR)
+void BUTTON::startTimer(int index)
 {
-    ets_printf("start timer\n");
-    auto &callback = m_callbacks[index];
+    ESPARRAG_ASSERT(index >= eStateId::PRESSED_SHORT);
+    ESPARRAG_ASSERT(index <= eStateId::PRESSED_LONG);
+
+    auto &callback = m_pressCallbacks[index];
     bool callbackValid = callback.m_cb != nullptr && callback.m_ms.value() != 0;
     if (!callbackValid)
         return;
 
-    MilliSeconds timeout;
-    switch (index)
-    {
-    case eStateId::PRESSED_SHORT:
-        timeout = callback.m_ms;
-        ets_printf("1\n");
-        break;
-    case eStateId::PRESSED_LONG:
-        timeout = callback.m_ms - m_callbacks[eStateId::PRESSED_SHORT].m_ms;
-        ets_printf("2\n");
-        break;
-    default:
-        ets_printf("3\n");
-        ESPARRAG_LOG_ERROR("unidentified callback for timer %d", index);
-        return;
-    }
-
-    if (fromISR)
-    {
-        BaseType_t higherPriority = pdFALSE;
-        ets_printf("change time\n");
-        xTimerChangePeriodFromISR(m_timer, timeout.toTicks(), &higherPriority);
-        ets_printf("start time\n");
-        xTimerStartFromISR(m_timer, &higherPriority);
-        ets_printf("yield\n");
-        portYIELD_FROM_ISR(higherPriority);
-    }
-    else
-    {
-        xTimerChangePeriod(m_timer, timeout.toTicks(), DEFAULT_FREERTOS_TIMEOUT);
-        xTimerStart(m_timer, DEFAULT_FREERTOS_TIMEOUT);
-    }
+    MilliSeconds timeout = callback.m_ms - m_pressCallbacks[index - 1].m_ms;
+    BaseType_t higherPriorityExists = pdFALSE;
+    xTimerChangePeriodFromISR(m_timer, timeout.toTicks(), &higherPriorityExists);
+    xTimerStartFromISR(m_timer, &higherPriorityExists);
+    YIELD_FROM_ISR_IF(higherPriorityExists);
 }
 
-void BUTTON::buttonISR(void *arg)
+void IRAM_ATTR BUTTON::buttonISR(void *arg)
 {
-    static Debouncer sampler;
+    static Debouncer sampler(3000);
     if (!sampler.IsValidNow())
         return;
 
-    ets_printf("in isr\n");
     BUTTON *button = reinterpret_cast<BUTTON *>(arg);
-    bool isPressed = button->m_gpi.IsActive();
-    if (isPressed)
+    button->m_buttonState = !button->m_buttonState;
+    if (button->m_buttonState)
         button->receive(PressEvent());
     else
         button->receive(ReleaseEvent());
@@ -312,37 +279,3 @@ void BUTTON::timerCB(xTimerHandle timer)
     BUTTON *button = reinterpret_cast<BUTTON *>(pvTimerGetTimerID(timer));
     button->receive(TimerEvent());
 }
-
-// //========================== TWO BUTTONS =============================
-
-// class IdleState2B : public etl::fsm_state<TWO_BUTTONS, IdleState2B, eStateId::IDLE,
-//                                           PressEvent>
-// {
-// };
-// class PressedState2B : public etl::fsm_state<TWO_BUTTONS, PressedState2B, eStateId::PRESSED,
-//                                              ReleaseEvent,
-//                                              TimerEvent>
-// {
-// };
-// class PressedShortState2B : public etl::fsm_state<TWO_BUTTONS, PressedShortState2B, eStateId::PRESSED_SHORT,
-//                                                   ReleaseEvent,
-//                                                   TimerEvent>
-// {
-// };
-
-// class PressedLongState2B : public etl::fsm_state<TWO_BUTTONS, PressedLongState2B, eStateId::PRESSED_LONG,
-//                                                  ReleaseEvent,
-//                                                  TimerEvent>
-// {
-// };
-
-// TWO_BUTTONS::TWO_BUTTONS(BUTTON &b1, BUTTON &b2) : fsm(TWO_BUTTONS_ROUTER), m_b1(b1), m_b2(b2) {}
-
-// void BUTTON::runCallback(int index)
-// {
-//     if (m_callbacks[index].m_cb != nullptr)
-//     {
-//         ESPARRAG_LOG_INFO("running %s event", index >= eStateId::NUM ? "relese" : "press");
-//         m_callbacks[index].m_cb(m_callbacks[index].arg, m_callbacks[index].arg2);
-//     }
-// }

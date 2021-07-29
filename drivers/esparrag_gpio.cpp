@@ -93,8 +93,7 @@ GPI::operator bool() const
 }
 bool GPI::IsActive() const
 {
-    bool level = (bool)gpio_get_level(m_pin);
-    return level == m_activeState;
+    return 0 != gpio_get_level(m_pin);
 }
 
 #include "esp_intr_alloc.h"

@@ -15,6 +15,9 @@
 
 #define ETL_ENUM_DEFAULT(ID) ETL_ENUM_TYPE(ID, #ID)
 #define DEFAULT_FREERTOS_TIMEOUT pdMS_TO_TICKS(5000) // 5 seconds
+#define YIELD_FROM_ISR_IF(X) \
+    if (X)                   \
+    portYIELD_FROM_ISR()
 
 enum class eResult : uint8_t
 {
