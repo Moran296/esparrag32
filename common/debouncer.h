@@ -7,8 +7,8 @@
 class Debouncer
 {
 public:
-    Debouncer(const MicroSeconds debounce_time = 1000) : debounce_time(debounce_time),
-                                                              last_sample(esp_timer_get_time()) {}
+    Debouncer(MicroSeconds debounce_time = 1000) : debounce_time(debounce_time),
+                                                              last_sample(0) {}
     bool IsValidNow()
     {
         if (esp_timer_get_time() - last_sample.value() > debounce_time.value())

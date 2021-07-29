@@ -52,12 +52,20 @@ void goo(void *arg, uint32_t hello)
 
 extern "C" void app_main()
 {
-    GPI gpi(2, GPIO_INTR_ANYEDGE);
+    GPI gpi(17, GPIO_INTR_ANYEDGE);
     BUTTON b(gpi);
     BUTTON::buttonCB press_fast = {.m_cb = goo, .arg2 = FAST_PRESS};
     BUTTON::buttonCB release_fast = {.m_cb = goo, .arg2 = FAST_RELEASE};
-    b.RegisterPress(std::move(press_fast));
-    b.RegisterRelease(std::move(release_fast));
+    BUTTON::buttonCB press_short = {.m_cb = goo, .arg2 = SHORT_PRESS, .m_ms = Seconds(3)};
+    BUTTON::buttonCB release_short = {.m_cb = goo, .arg2 = SHORT_RELEASE, .m_ms = Seconds(3)};
+    BUTTON::buttonCB press_long = {.m_cb = goo, .arg2 = LONG_PRESS, .m_ms = Seconds(5)};
+    BUTTON::buttonCB release_long = {.m_cb = goo, .arg2 = LONG_RELEASE, .m_ms = Seconds(5)};
+     b.RegisterPress(std::move(press_fast));
+    // b.RegisterRelease(std::move(release_fast));
+    b.RegisterPress(std::move(press_short));
+    // b.RegisterRelease(std::move(release_short));
+    // b.RegisterPress(std::move(press_long));
+    // b.RegisterRelease(std::move(release_long));
 
     EsparragManager manager;
     manager.Run();

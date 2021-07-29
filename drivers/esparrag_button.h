@@ -65,7 +65,7 @@ public:
     };
 
     static constexpr int MAX_CALLBACKS = eStateId::NUM * 2;
-    using callback_list_t = etl::array<buttonCB, MAX_CALLBACKS>;
+    using callback_list_t = etl::array<buttonCB, eStateId::NUM>;
 
     BUTTON(GPI &gpi);
     eResult RegisterPress(buttonCB &&cb);
@@ -73,17 +73,21 @@ public:
 
 private:
     GPI &m_gpi;
-    callback_list_t m_callbacks{};
+    callback_list_t m_pressCallbacks{};
+    callback_list_t m_releaseCallbacks{};
     xTimerHandle m_timer{};
     bool m_ignoreNextRelease = false;
+    MicroSeconds m_pressTime{};
 
-    void runCallback(int index);
+    void runPressCallback(uint8_t index);
+    void runReleaseCallback();
     void stopTimer(bool fromISR = false);
     void startTimer(int index, bool fromISR = false);
-    eResult registerEvent(buttonCB &&cb, int mod);
+    eResult registerEvent(buttonCB &&cb, callback_list_t& list);
 
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
+    etl::ifsm_state *stateList[eStateId::NUM];
 
     friend class IdleState;
     friend class PressedState;
