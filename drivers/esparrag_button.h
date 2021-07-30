@@ -42,10 +42,33 @@ struct eStateId
     {
         IDLE,
         PRESSED,
-        PRESSED_SHORT,
-        PRESSED_LONG,
         NUM
     };
+};
+
+class BUTTON;
+
+class IdleState : public etl::fsm_state<BUTTON, IdleState, eStateId::IDLE,
+                                        PressEvent>
+{
+public:
+    etl::fsm_state_id_t on_enter_state();
+    etl::fsm_state_id_t on_event(const PressEvent &event);
+    etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
+};
+
+class PressedState : public etl::fsm_state<BUTTON, PressedState, eStateId::PRESSED,
+                                           ReleaseEvent,
+                                           TimerEvent>
+{
+public:
+    etl::fsm_state_id_t on_enter_state();
+    etl::fsm_state_id_t on_event(const ReleaseEvent &event);
+    etl::fsm_state_id_t on_event(const TimerEvent &event);
+    etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
+
+private:
+    int m_timeouts = 0;
 };
 
 class BUTTON : public etl::fsm, public etl::instance_count<BUTTON>
@@ -59,8 +82,16 @@ public:
         MilliSeconds m_ms = 0;
     };
 
-    static constexpr int MAX_CALLBACKS = eStateId::NUM * 2;
-    using callback_list_t = etl::array<buttonCB, eStateId::NUM>;
+    enum ePressTypes
+    {
+        FAST_PRESS,
+        PRESS_TIMEOUT_1,
+        PRESS_TIMEOUT_2,
+        PRESS_NUM
+    };
+
+    static constexpr int MAX_CALLBACKS = PRESS_NUM;
+    using callback_list_t = etl::array<buttonCB, MAX_CALLBACKS>;
 
     BUTTON(GPI &gpi);
     eResult RegisterPress(buttonCB &&cb);
@@ -82,12 +113,13 @@ private:
 
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
-    etl::ifsm_state *stateList[eStateId::NUM];
+
+    IdleState m_idle;
+    PressedState m_pressed;
+    etl::ifsm_state *stateList[eStateId::NUM]{&m_idle, &m_pressed};
 
     friend class IdleState;
     friend class PressedState;
-    friend class PressedShortState;
-    friend class PressedLongState;
     friend class TWO_BUTTONS;
 };
 

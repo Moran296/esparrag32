@@ -34,6 +34,12 @@ void goo(void *arg, uint32_t hello)
     case SHORT_PRESS:
         ESPARRAG_LOG_INFO("short press");
         break;
+    case 34:
+        ESPARRAG_LOG_INFO("fast press b2");
+        break;
+    case 35:
+        ESPARRAG_LOG_INFO("short press b3");
+        break;
     case LONG_PRESS:
         ESPARRAG_LOG_INFO("long press");
         break;
@@ -60,7 +66,6 @@ void goo(void *arg, uint32_t hello)
 extern "C" void app_main()
 {
     GPI gpi1(17, GPIO_INTR_ANYEDGE);
-    GPI gpi2(18, GPIO_INTR_ANYEDGE);
     BUTTON a(gpi1);
     BUTTON::buttonCB press_fast = {.m_cb = goo, .arg2 = FAST_PRESS};
     BUTTON::buttonCB release_fast = {.m_cb = goo, .arg2 = FAST_RELEASE};
@@ -76,12 +81,17 @@ extern "C" void app_main()
     a.RegisterPress(std::move(press_long));
     a.RegisterRelease(std::move(release_long));
 
-    BUTTON bb(gpi2);
-    BUTTON::buttonCB press_fast2 = {.m_cb = goo, .arg2 = 12};
-    BUTTON::buttonCB release_fast2 = {.m_cb = goo, .arg2 = 13};
-    TWO_BUTTONS butt(a, bb);
-    butt.RegisterPress(std::move(press_fast2));
-    butt.RegisterRelease(std::move(release_fast2));
+    GPI gpi2(18, GPIO_INTR_ANYEDGE);
+    BUTTON b(gpi2);
+    BUTTON::buttonCB press_fast2 = {.m_cb = goo, .arg2 = 34};
+    BUTTON::buttonCB release_fast2 = {.m_cb = goo, .arg2 = 35};
+    b.RegisterPress(std::move(press_fast2));
+    b.RegisterRelease(std::move(release_fast2));
+    // BUTTON::buttonCB press_fast2 = {.m_cb = goo, .arg2 = 12};
+    // BUTTON::buttonCB release_fast2 = {.m_cb = goo, .arg2 = 13};
+    // TWO_BUTTONS butt(a, bb);
+    // butt.RegisterPress(std::move(press_fast2));
+    // butt.RegisterRelease(std::move(release_fast2));
 
     EsparragManager manager;
     manager.Run();
