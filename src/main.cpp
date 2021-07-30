@@ -58,10 +58,19 @@ void goo(void *arg, uint32_t hello)
     case 13:
         ESPARRAG_LOG_INFO("fast release two buttons");
         break;
+    case 55:
+        ESPARRAG_LOG_INFO("2b short timed callback press");
+        break;
+    case 66:
+        ESPARRAG_LOG_INFO("2b short timed callback release");
+        break;
     default:
         ESPARRAG_LOG_INFO("whaaaaattt");
     }
 }
+
+#include "etl/vector.h"
+#include "etl/algorithm.h"
 
 extern "C" void app_main()
 {
@@ -87,11 +96,11 @@ extern "C" void app_main()
     BUTTON::buttonCB release_fast2 = {.m_cb = goo, .arg2 = 35};
     b.RegisterPress(std::move(press_fast2));
     b.RegisterRelease(std::move(release_fast2));
-    // BUTTON::buttonCB press_fast2 = {.m_cb = goo, .arg2 = 12};
-    // BUTTON::buttonCB release_fast2 = {.m_cb = goo, .arg2 = 13};
-    // TWO_BUTTONS butt(a, bb);
-    // butt.RegisterPress(std::move(press_fast2));
-    // butt.RegisterRelease(std::move(release_fast2));
+    BUTTON::buttonCB b2press = {.m_cb = goo, .arg2 = 55, .m_ms = Seconds(3)};
+    BUTTON::buttonCB b2release = {.m_cb = goo, .arg2 = 66, .m_ms = Seconds(3)};
+    TWO_BUTTONS butt(a, b);
+    butt.RegisterPress(std::move(b2press));
+    butt.RegisterRelease(std::move(b2release));
 
     EsparragManager manager;
     manager.Run();

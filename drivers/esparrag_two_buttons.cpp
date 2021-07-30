@@ -1,348 +1,186 @@
 #include "esparrag_two_buttons.h"
 #include "debouncer.h"
 
-// class IdleState2B : public etl::fsm_state<TWO_BUTTONS, IdleState2B, eStateId::IDLE,
-//                                         A_PressEvent, A_ReleaseEvent, B_PressEvent, B_ReleaseEvent>
-// {
-// public:
-//     etl::fsm_state_id_t
-//     on_event(const A_PressEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         if (two_button.m_b2.m_buttonState)
-//         {
-//             two_button.m_b2.m_buttonState = false;
-//             two_button.m_b2.reset(false); //might be a problem
-//             two_button.m_b2.start(false);
-//             two_button.runPressCallback(eStateId::PRESSED);
-//             return eStateId::PRESSED;
-//         }
+// ========IDLE STATE============
+etl::fsm_state_id_t
+IdleState_2B::on_enter_state()
+{
+    m_isButton1Pressed = false;
+    m_isButton2Pressed = false;
+    return STATE_ID;
+}
 
-//         two_button.m_b1.receive(PressEvent());
-//         return STATE_ID;
-//     }
-//     etl::fsm_state_id_t
-//     on_event(const B_PressEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         if (two_button.m_b1.m_buttonState)
-//         {
-//             two_button.m_b2.m_buttonState = false;
-//             two_button.m_b2.reset(false);
-//             two_button.m_b2.start(false);
-//             two_button.runPressCallback(eStateId::PRESSED);
-//             return eStateId::PRESSED;
-//         }
+etl::fsm_state_id_t
+IdleState_2B::on_event(const PressEvent_2B &event)
+{
+    auto &two_buttons = get_fsm_context();
+    auto &buttonPressed = event.m_buttonId == eButtonID::BUTTON_A ? m_isButton1Pressed : m_isButton2Pressed;
+    buttonPressed = true;
+    if (m_isButton1Pressed && m_isButton2Pressed)
+    {
+        //one button previously pressed, should release it (without running its callback)
+        auto &previousPressedButton = event.m_buttonId == eButtonID::BUTTON_A ? two_buttons.m_b2 : two_buttons.m_b1;
+        previousPressedButton.m_ignoreReleaseCallback = true;
+        previousPressedButton.receive(ReleaseEvent());
+        return eStateId::PRESSED;
+    }
 
-//         two_button.m_b2.receive(PressEvent());
-//         return STATE_ID;
-//     }
-//     etl::fsm_state_id_t
-//     on_event(const A_ReleaseEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.m_b1.receive(ReleaseEvent());
-//         return STATE_ID;
-//     }
-//     etl::fsm_state_id_t
-//     on_event(const B_ReleaseEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.m_b2.receive(ReleaseEvent());
-//         return STATE_ID;
-//     }
+    //only one button was pressed, send him a press event
+    auto &button = m_isButton1Pressed ? two_buttons.m_b1 : two_buttons.m_b2;
+    button.receive(PressEvent());
+    return STATE_ID;
+}
 
-//     etl::fsm_state_id_t
-//     on_event_unknown(const etl::imessage &event)
-//     {
-//         return STATE_ID;
-//     }
-// };
+etl::fsm_state_id_t
+IdleState_2B::on_event(const ReleaseEvent_2B &event)
+{
+    auto &buttonReleased = event.m_buttonId == eButtonID::BUTTON_A ? m_isButton1Pressed : m_isButton2Pressed;
+    buttonReleased = false;
 
-// class PressedState : public etl::fsm_state<BUTTON, PressedState, eStateId::PRESSED,
-//                                            A_ReleaseEvent, B_ReleaseEvent,
-//                                            Two_TimerEvent>
-// {
-// public:
-//     etl::fsm_state_id_t
-//     on_enter_state()
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.startTimer(eStateId::PRESSED_SHORT);
-//         return STATE_ID;
-//     }
+    auto &two_buttons = get_fsm_context();
+    auto &button = event.m_buttonId == eButtonID::BUTTON_A ? two_buttons.m_b1 : two_buttons.m_b2;
+    button.receive(ReleaseEvent());
+    return STATE_ID;
+}
 
-//     etl::fsm_state_id_t
-//     on_event(const A_ReleaseEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.stopTimer(true);
-//         two_button.runReleaseCallback();
-//         return eStateId::IDLE;
-//     }
+etl::fsm_state_id_t
+IdleState_2B::on_event_unknown(const etl::imessage &event)
+{
+    ets_printf("idle unknown 2b %d\n", (uint8_t)get_state_id());
+    return STATE_ID;
+}
 
-//     etl::fsm_state_id_t
-//     on_event(const B_ReleaseEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.stopTimer(true);
-//         two_button.runReleaseCallback();
-//         return eStateId::IDLE;
-//     }
+// ========PRESSED STATE============
+etl::fsm_state_id_t
+PressedState_2B::on_enter_state()
+{
+    m_isButton1Released = false;
+    m_isButton2Released = false;
 
-//     etl::fsm_state_id_t
-//     on_event(const Two_TimerEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.runPressCallback(eStateId::PRESSED_SHORT);
-//         return eStateId::PRESSED_SHORT;
-//     }
+    auto &two_buttons = get_fsm_context();
+    two_buttons.m_b1.runPressCallback(two_buttons.m_pressCallbacks, ePressType::FAST_PRESS);
 
-//     etl::fsm_state_id_t
-//     on_event_unknown(const etl::imessage &event)
-//     {
-//         ets_printf("pressed unknown %d\n", (uint8_t)get_state_id());
-//         return STATE_ID;
-//     }
-// };
-// class PressedShortState : public etl::fsm_state<BUTTON, PressedShortState, eStateId::PRESSED_SHORT,
-//                                                 A_ReleaseEvent, B_ReleaseEvent,
-//                                                 Two_TimerEvent>
-// {
-// public:
-//     etl::fsm_state_id_t
-//     on_enter_state()
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.startTimer(eStateId::PRESSED_LONG);
-//         return STATE_ID;
-//     }
+    m_timeouts = ePressType::PRESS_TIMEOUT_1;
+    two_buttons.m_lastPressTime = esp_timer_get_time();
+    two_buttons.startTimer(ePressType(m_timeouts));
+    return STATE_ID;
+}
 
-//     etl::fsm_state_id_t
-//     on_event(const A_ReleaseEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.stopTimer(true);
-//         two_button.runReleaseCallback();
-//         return eStateId::IDLE;
-//     }
+etl::fsm_state_id_t
+PressedState_2B::on_event(const ReleaseEvent_2B &event)
+{
+    auto &two_buttons = get_fsm_context();
+    two_buttons.stopTimer(true);
 
-//     etl::fsm_state_id_t
-//     on_event(const B_ReleaseEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.stopTimer(true);
-//         two_button.runReleaseCallback();
-//         return eStateId::IDLE;
-//     }
+    auto &buttonReleased = event.m_buttonId == eButtonID::BUTTON_A ? m_isButton1Released : m_isButton2Released;
+    buttonReleased = true;
+    if (m_isButton1Released && m_isButton2Released)
+    {
+        return eStateId::IDLE;
+    }
 
-//     etl::fsm_state_id_t
-//     on_event(const Two_TimerEvent &event)
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.runPressCallback(eStateId::PRESSED_LONG);
-//         return eStateId::PRESSED_SHORT;
-//     }
+    two_buttons.m_b1.runReleaseCallback(two_buttons.m_releaseCallbacks);
+    return STATE_ID;
+}
 
-//     etl::fsm_state_id_t
-//     on_event_unknown(const etl::imessage &event)
-//     {
-//         ets_printf("pressed unknown %d\n", (uint8_t)get_state_id());
-//         return STATE_ID;
-//     }
-// };
+etl::fsm_state_id_t
+PressedState_2B::on_event(const TimerEvent_2B &event)
+{
+    auto &two_button = get_fsm_context();
+    two_button.m_b1.runPressCallback(two_button.m_pressCallbacks, ePressType(m_timeouts));
 
-// class PressedLongState : public etl::fsm_state<BUTTON, PressedLongState, eStateId::PRESSED_LONG,
-//                                                A_ReleaseEvent, B_ReleaseEvent>
-// {
-// public:
-//     etl::fsm_state_id_t
-//     on_enter_state()
-//     {
-//         auto &two_button = get_fsm_context();
-//         two_button.stopTimer();
-//         return STATE_ID;
-//     }
+    m_timeouts++;
+    two_button.startTimer(ePressType(m_timeouts));
+    return STATE_ID;
+}
 
-//     etl::fsm_state_id_t
-//     on_event(const A_ReleaseEvent &event)
-//     {
-//         //Release after long duration press
-//         auto &two_button = get_fsm_context();
-//         two_button.runReleaseCallback();
-//         return eStateId::IDLE;
-//     }
-//     etl::fsm_state_id_t
-//     on_event(const B_ReleaseEvent &event)
-//     {
-//         //Release after long duration press
-//         auto &two_button = get_fsm_context();
-//         two_button.runReleaseCallback();
-//         return eStateId::IDLE;
-//     }
+etl::fsm_state_id_t
+PressedState_2B::on_event_unknown(const etl::imessage &event)
+{
+    m_timeouts = 0;
+    ets_printf("pressed unknown 2b %d\n", (uint8_t)get_state_id());
+    return STATE_ID;
+}
 
-//     etl::fsm_state_id_t
-//     on_event_unknown(const etl::imessage &event)
-//     {
-//         ets_printf("unknown long pressed\n");
-//         return STATE_ID;
-//     }
-// };
+//========TWO_BUTTONS=====
 
-// static IdleState2B m_idle;
-// static PressedState m_pressed;
-// static PressedShortState m_pressedShort;
-// static PressedLongState m_pressedLong;
+TWO_BUTTONS::TWO_BUTTONS(BUTTON &a, BUTTON &b) : fsm(get_instance_count()), m_b1(a), m_b2(b)
+{
+    eResult res = m_b1.m_gpi.EnableInterrupt(button1ISR, this);
+    ESPARRAG_ASSERT(res == eResult::SUCCESS);
+    res = m_b2.m_gpi.EnableInterrupt(button2ISR, this);
+    ESPARRAG_ASSERT(res == eResult::SUCCESS);
 
-// TWO_BUTTONS::TWO_BUTTONS(BUTTON &a, BUTTON &b) : fsm(get_instance_count()), m_b1(a), m_b2(b)
-// {
-//     eResult res = m_b1.m_gpi.EnableInterrupt(button1ISR, this);
-//     ESPARRAG_ASSERT(res == eResult::SUCCESS);
-//     res = m_b2.m_gpi.EnableInterrupt(button2ISR, this);
-//     ESPARRAG_ASSERT(res == eResult::SUCCESS);
+    m_timer = xTimerCreate("two_buttons", 100, pdFALSE, this, timerCB);
+    ESPARRAG_ASSERT(m_timer);
+    set_states(stateList, etl::size(stateList));
+    start();
+}
 
-//     m_timer = xTimerCreate("two_buttons", 100, pdFALSE, this, timerCB);
-//     ESPARRAG_ASSERT(m_timer);
-//     stateList[eStateId::IDLE] = &m_idle;
-//     stateList[eStateId::PRESSED] = &m_pressed;
-//     stateList[eStateId::PRESSED_SHORT] = &m_pressedShort;
-//     stateList[eStateId::PRESSED_LONG] = &m_pressedLong;
-//     set_states(stateList, etl::size(stateList));
-//     start();
-// }
+eResult TWO_BUTTONS::RegisterPress(BUTTON::buttonCB &&cb)
+{
+    return m_b1.registerEvent(std::move(cb), m_pressCallbacks);
+}
+eResult TWO_BUTTONS::RegisterRelease(BUTTON::buttonCB &&cb)
+{
+    return m_b1.registerEvent(std::move(cb), m_releaseCallbacks);
+}
 
-// void TWO_BUTTONS::button1ISR(void *arg)
-// {
-//     static Debouncer sampler(3000);
-//     if (!sampler.IsValidNow())
-//         return;
+void TWO_BUTTONS::button1ISR(void *arg)
+{
+    TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(arg);
+    if (!two_buttons->m_sampler.IsValidNow())
+        return;
 
-//     TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(arg);
-//     if (two_buttons->m_b1.m_buttonState)
-//         two_buttons->receive(A_ReleaseEvent());
-//     else
-//         two_buttons->receive(A_PressEvent());
-// }
+    two_buttons->m_b1.m_buttonState = !two_buttons->m_b1.m_buttonState;
+    if (two_buttons->m_b1.m_buttonState)
+        two_buttons->receive(PressEvent_2B(eButtonID::BUTTON_A));
+    else
+        two_buttons->receive(ReleaseEvent_2B(eButtonID::BUTTON_A));
+}
 
-// void TWO_BUTTONS::button2ISR(void *arg)
-// {
-//     static Debouncer sampler(3000);
-//     if (!sampler.IsValidNow())
-//         return;
+void TWO_BUTTONS::button2ISR(void *arg)
+{
+    TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(arg);
+    if (!two_buttons->m_sampler.IsValidNow())
+        return;
 
-//     TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(arg);
-//     if (two_buttons->m_b1.m_buttonState)
-//         two_buttons->receive(B_ReleaseEvent());
-//     else
-//         two_buttons->receive(B_PressEvent());
-// }
+    two_buttons->m_b2.m_buttonState = !two_buttons->m_b2.m_buttonState;
+    if (two_buttons->m_b2.m_buttonState)
+        two_buttons->receive(PressEvent_2B(eButtonID::BUTTON_B));
+    else
+        two_buttons->receive(ReleaseEvent_2B(eButtonID::BUTTON_B));
+}
 
-// void TWO_BUTTONS::timerCB(xTimerHandle timer)
-// {
-//     TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(pvTimerGetTimerID(timer));
-//     two_buttons->receive(Two_TimerEvent());
-// }
+void TWO_BUTTONS::timerCB(xTimerHandle timer)
+{
+    TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(pvTimerGetTimerID(timer));
+    two_buttons->receive(TimerEvent_2B());
+}
 
-// eResult TWO_BUTTONS::registerEvent(BUTTON::buttonCB &&cb, BUTTON::callback_list_t &list)
-// {
-//     ESPARRAG_ASSERT(cb.m_cb != nullptr);
-//     if (cb.m_ms.value() == 0)
-//     {
-//         list[eStateId::PRESSED] = cb;
-//         ESPARRAG_LOG_ERROR("registered as fast");
-//         return eResult::SUCCESS;
-//     }
-//     else if (list[eStateId::PRESSED_SHORT].m_cb == nullptr)
-//     {
-//         list[eStateId::PRESSED_SHORT] = cb;
-//         ESPARRAG_LOG_ERROR("registered as short");
-//         return eResult::SUCCESS;
-//     }
-//     else if (list[eStateId::PRESSED_LONG].m_cb == nullptr)
-//     {
-//         if (list[eStateId::PRESSED_SHORT].m_ms > cb.m_ms)
-//         {
-//             ESPARRAG_LOG_ERROR("registered as short");
-//             list[eStateId::PRESSED_LONG] = list[eStateId::PRESSED_SHORT];
-//             list[eStateId::PRESSED_SHORT] = cb;
-//         }
+void TWO_BUTTONS::stopTimer(bool fromISR)
+{
+    if (fromISR)
+        xTimerStopFromISR(m_timer, NULL);
+    else
+        xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
+}
 
-//         else
-//         {
+void TWO_BUTTONS::startTimer(ePressType timeout)
+{
+    ESPARRAG_ASSERT(timeout.get_value() >= ePressType::PRESS_TIMEOUT_1);
+    if (timeout.get_value() >= BUTTON::MAX_CALLBACKS)
+        return;
 
-//             ESPARRAG_LOG_ERROR("registered as long");
-//             list[eStateId::PRESSED_LONG] = cb;
-//         }
+    auto &callback = m_pressCallbacks[timeout.get_value()];
+    bool callbackValid = callback.m_cb != nullptr && callback.m_ms.value() != 0;
+    if (!callbackValid)
+        return;
 
-//         return eResult::SUCCESS;
-//     }
-
-//     ESPARRAG_LOG_ERROR("couldnt find place for callback");
-//     return eResult::ERROR_INVALID_STATE;
-// }
-
-// eResult TWO_BUTTONS::RegisterPress(BUTTON::buttonCB &&cb)
-// {
-//     return registerEvent(std::move(cb), m_pressCallbacks);
-// }
-// eResult TWO_BUTTONS::RegisterRelease(BUTTON::buttonCB &&cb)
-// {
-//     return registerEvent(std::move(cb), m_releaseCallbacks);
-// }
-
-// void TWO_BUTTONS::runPressCallback(uint8_t index)
-// {
-//     auto &callback = m_pressCallbacks[index];
-//     if (callback.m_cb != nullptr)
-//     {
-//         BaseType_t higherPriorityExists;
-//         xTimerPendFunctionCallFromISR(callback.m_cb, callback.arg, callback.arg2, &higherPriorityExists);
-//         YIELD_FROM_ISR_IF(higherPriorityExists);
-//     }
-// }
-
-// void TWO_BUTTONS::runReleaseCallback()
-// {
-//     ESPARRAG_ASSERT(esp_timer_get_time() > m_lastPressTime.value())
-//     MicroSeconds timePassedSincePress = MicroSeconds(esp_timer_get_time()) - m_lastPressTime;
-
-//     for (size_t i = eStateId::PRESSED_LONG; i > eStateId::IDLE; i--)
-//     {
-//         auto &callback = m_releaseCallbacks[i];
-//         if (callback.m_cb != nullptr)
-//         {
-//             if (timePassedSincePress >= callback.m_ms)
-//             {
-//                 BaseType_t higherPriorityExists;
-//                 xTimerPendFunctionCallFromISR(callback.m_cb, callback.arg, callback.arg2, &higherPriorityExists);
-//                 YIELD_FROM_ISR_IF(higherPriorityExists);
-//                 return;
-//             }
-//         }
-//     }
-// }
-
-// void TWO_BUTTONS::stopTimer(bool fromISR)
-// {
-//     if (fromISR)
-//         xTimerStopFromISR(m_timer, NULL);
-//     else
-//         xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
-// }
-
-// void TWO_BUTTONS::startTimer(int index)
-// {
-//     ESPARRAG_ASSERT(index >= eStateId::PRESSED_SHORT);
-//     ESPARRAG_ASSERT(index <= eStateId::PRESSED_LONG);
-
-//     auto &callback = m_pressCallbacks[index];
-//     bool callbackValid = callback.m_cb != nullptr && callback.m_ms.value() != 0;
-//     if (!callbackValid)
-//         return;
-
-//     MilliSeconds timeout = callback.m_ms - m_pressCallbacks[index - 1].m_ms;
-//     BaseType_t higherPriorityExists = pdFALSE;
-//     xTimerChangePeriodFromISR(m_timer, timeout.toTicks(), &higherPriorityExists);
-//     xTimerStartFromISR(m_timer, &higherPriorityExists);
-//     YIELD_FROM_ISR_IF(higherPriorityExists);
-// }
+    //callback timeout is the delta between requested time and last callback timeout
+    MilliSeconds ms = callback.m_ms - m_pressCallbacks[timeout.get_value() - 1].m_ms;
+    BaseType_t higherPriorityExists = pdFALSE;
+    xTimerChangePeriodFromISR(m_timer, ms.toTicks(), &higherPriorityExists);
+    xTimerStartFromISR(m_timer, &higherPriorityExists);
+    YIELD_FROM_ISR_IF(higherPriorityExists);
+}

@@ -1,13 +1,7 @@
 #include "esparrag_button.h"
-#include "debouncer.h"
+#include "etl/algorithm.h"
 
 // ========IDLE STATE============
-etl::fsm_state_id_t
-IdleState::on_enter_state()
-{
-    return STATE_ID;
-}
-
 etl::fsm_state_id_t
 IdleState::on_event(const PressEvent &event)
 {
@@ -17,7 +11,6 @@ IdleState::on_event(const PressEvent &event)
 etl::fsm_state_id_t
 IdleState::on_event_unknown(const etl::imessage &event)
 {
-    ets_printf("pressed unknown %d\n", (uint8_t)get_state_id());
     return STATE_ID;
 }
 
@@ -26,11 +19,11 @@ etl::fsm_state_id_t
 PressedState::on_enter_state()
 {
     auto &button = get_fsm_context();
-    button.runPressCallback(BUTTON::ePressTypes::FAST_PRESS);
+    button.runPressCallback(button.m_pressCallbacks, ePressType::FAST_PRESS);
 
-    m_timeouts = BUTTON::ePressTypes::PRESS_TIMEOUT_1;
+    m_timeouts = ePressType::PRESS_TIMEOUT_1;
     button.m_lastPressTime = esp_timer_get_time();
-    button.startTimer(m_timeouts);
+    button.startTimer(ePressType(m_timeouts));
     return STATE_ID;
 }
 
@@ -39,7 +32,7 @@ PressedState::on_event(const ReleaseEvent &event)
 {
     auto &button = get_fsm_context();
     button.stopTimer(true);
-    button.runReleaseCallback();
+    button.runReleaseCallback(button.m_releaseCallbacks);
     return eStateId::IDLE;
 }
 
@@ -47,10 +40,10 @@ etl::fsm_state_id_t
 PressedState::on_event(const TimerEvent &event)
 {
     auto &button = get_fsm_context();
-    button.runPressCallback(m_timeouts);
+    button.runPressCallback(button.m_pressCallbacks, ePressType(m_timeouts));
 
     m_timeouts++;
-    button.startTimer(m_timeouts);
+    button.startTimer(ePressType(m_timeouts));
     return STATE_ID;
 }
 
@@ -81,59 +74,67 @@ BUTTON::BUTTON(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
     start();
 }
 
-eResult BUTTON::registerEvent(buttonCB &&cb, callback_list_t &list)
-{
-    ESPARRAG_ASSERT(cb.m_cb != nullptr);
-    if (cb.m_ms.value() == 0)
-    {
-        list[ePressTypes::FAST_PRESS] = cb;
-        ESPARRAG_LOG_ERROR("registered as fast");
-        return eResult::SUCCESS;
-    }
-    else if (list[ePressTypes::PRESS_TIMEOUT_1].m_cb == nullptr)
-    {
-        list[ePressTypes::PRESS_TIMEOUT_1] = cb;
-        ESPARRAG_LOG_ERROR("registered as short");
-        return eResult::SUCCESS;
-    }
-    else if (list[ePressTypes::PRESS_TIMEOUT_2].m_cb == nullptr)
-    {
-        if (list[ePressTypes::PRESS_TIMEOUT_1].m_ms > cb.m_ms)
-        {
-            ESPARRAG_LOG_ERROR("registered as short");
-            list[ePressTypes::PRESS_TIMEOUT_2] = list[ePressTypes::PRESS_TIMEOUT_1];
-            list[ePressTypes::PRESS_TIMEOUT_1] = cb;
-        }
-
-        else
-        {
-
-            ESPARRAG_LOG_ERROR("registered as long");
-            list[ePressTypes::PRESS_TIMEOUT_2] = cb;
-        }
-
-        return eResult::SUCCESS;
-    }
-
-    ESPARRAG_LOG_ERROR("couldnt find place for callback");
-    return eResult::ERROR_INVALID_STATE;
-}
-
 eResult BUTTON::RegisterPress(buttonCB &&cb)
 {
     return registerEvent(std::move(cb), m_pressCallbacks);
 }
+
 eResult BUTTON::RegisterRelease(buttonCB &&cb)
 {
     return registerEvent(std::move(cb), m_releaseCallbacks);
 }
 
-void BUTTON::runPressCallback(uint8_t index)
+eResult BUTTON::registerEvent(buttonCB &&cb, callback_list_t &cb_list)
 {
-    if (index >= MAX_CALLBACKS)
+    ESPARRAG_ASSERT(cb.m_cb != nullptr);
+    MilliSeconds cbTime = cb.m_ms;
+    // if timeout is 0, it should be registered as the first callback
+    if (cbTime.value() == 0)
+    {
+        if (cb_list[0].m_cb != nullptr)
+            ESPARRAG_LOG_WARNING("button event is registered instead of an existing event");
+
+        cb_list[ePressType::FAST_PRESS] = cb;
+        ESPARRAG_LOG_INFO("event written as %s", ePressType(0).c_str());
+        return eResult::SUCCESS;
+    }
+
+    //utility for inserting and reordering
+    auto cb_sorted_inserter = [&cb_list, &cb](int i)
+    {
+        cb_list[i] = cb;
+        etl::sort(cb_list.begin(), cb_list.begin() + i);
+        ESPARRAG_LOG_INFO("event written as %s", ePressType(i).c_str());
+        return eResult::SUCCESS;
+    };
+
+    //otherwise find a place in the timeout section
+    for (size_t i = ePressType::PRESS_TIMEOUT_1; i < ePressType::PRESS_NUM; i++)
+    {
+        if (cb_list[i].m_ms.value() == 0)
+        {
+            //we found an empty place
+            return cb_sorted_inserter(i);
+        }
+
+        if (cb_list[i].m_ms == cbTime)
+        {
+            //we found a callback with an equal time, we will replace it
+            ESPARRAG_LOG_WARNING("button event is registered instead of an existing event");
+            return cb_sorted_inserter(i);
+        }
+    }
+
+    ESPARRAG_LOG_ERROR("couldnt find place for callback");
+    return eResult::ERROR_INVALID_PARAMETER;
+}
+
+void BUTTON::runPressCallback(callback_list_t &cb_list, ePressType press)
+{
+    if (press.get_value() >= MAX_CALLBACKS)
         return;
 
-    auto &callback = m_pressCallbacks[index];
+    auto &callback = cb_list[press];
     if (callback.m_cb != nullptr)
     {
         BaseType_t higherPriorityExists;
@@ -142,14 +143,21 @@ void BUTTON::runPressCallback(uint8_t index)
     }
 }
 
-void BUTTON::runReleaseCallback()
+void BUTTON::runReleaseCallback(callback_list_t &cb_list)
 {
+    if (m_ignoreReleaseCallback)
+    {
+        m_ignoreReleaseCallback = false;
+        return;
+    }
+
     ESPARRAG_ASSERT(esp_timer_get_time() > m_lastPressTime.value())
     MicroSeconds timePassedSincePress = MicroSeconds(esp_timer_get_time()) - m_lastPressTime;
 
-    for (int i = ePressTypes::PRESS_TIMEOUT_2; i >= ePressTypes::FAST_PRESS; i--)
+    //find the longest release time that is smaller than time passed since press
+    for (int i = ePressType::PRESS_TIMEOUT_2; i >= ePressType::FAST_PRESS; i--)
     {
-        auto &callback = m_releaseCallbacks[i];
+        auto &callback = cb_list[i];
         if (callback.m_cb != nullptr)
         {
             if (timePassedSincePress >= callback.m_ms)
@@ -171,31 +179,32 @@ void BUTTON::stopTimer(bool fromISR)
         xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
 }
 
-void BUTTON::startTimer(int index)
+void BUTTON::startTimer(ePressType timeout)
 {
-    ESPARRAG_ASSERT(index >= ePressTypes::PRESS_TIMEOUT_1);
-    if (index >= MAX_CALLBACKS)
+    ESPARRAG_ASSERT(timeout.get_value() >= ePressType::PRESS_TIMEOUT_1);
+    if (timeout.get_value() >= MAX_CALLBACKS)
         return;
 
-    auto &callback = m_pressCallbacks[index];
+    auto &callback = m_pressCallbacks[timeout.get_value()];
     bool callbackValid = callback.m_cb != nullptr && callback.m_ms.value() != 0;
     if (!callbackValid)
         return;
 
-    MilliSeconds timeout = callback.m_ms - m_pressCallbacks[index - 1].m_ms;
+    //callback timeout is the delta between requested time and last callback timeout
+    MilliSeconds ms = callback.m_ms - m_pressCallbacks[timeout.get_value() - 1].m_ms;
     BaseType_t higherPriorityExists = pdFALSE;
-    xTimerChangePeriodFromISR(m_timer, timeout.toTicks(), &higherPriorityExists);
+    xTimerChangePeriodFromISR(m_timer, ms.toTicks(), &higherPriorityExists);
     xTimerStartFromISR(m_timer, &higherPriorityExists);
     YIELD_FROM_ISR_IF(higherPriorityExists);
 }
 
 void IRAM_ATTR BUTTON::buttonISR(void *arg)
 {
-    static Debouncer sampler(10000);
-    if (!sampler.IsValidNow())
+    ets_printf("button isr");
+    BUTTON *button = reinterpret_cast<BUTTON *>(arg);
+    if (!button->m_sampler.IsValidNow())
         return;
 
-    BUTTON *button = reinterpret_cast<BUTTON *>(arg);
     button->m_buttonState = !button->m_buttonState;
     if (button->m_buttonState)
         button->receive(PressEvent());

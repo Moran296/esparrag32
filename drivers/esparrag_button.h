@@ -2,6 +2,7 @@
 #define ESPARRAG_BUTTON_H__
 
 #include "esparrag_common.h"
+#include "debouncer.h"
 #include "esparrag_time_units.h"
 #include "esparrag_log.h"
 #include "esparrag_gpio.h"
@@ -52,7 +53,6 @@ class IdleState : public etl::fsm_state<BUTTON, IdleState, eStateId::IDLE,
                                         PressEvent>
 {
 public:
-    etl::fsm_state_id_t on_enter_state();
     etl::fsm_state_id_t on_event(const PressEvent &event);
     etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
 };
@@ -71,7 +71,26 @@ private:
     int m_timeouts = 0;
 };
 
-class BUTTON : public etl::fsm, public etl::instance_count<BUTTON>
+struct ePressType
+{
+    enum enum_type
+    {
+        FAST_PRESS,
+        PRESS_TIMEOUT_1,
+        PRESS_TIMEOUT_2,
+        PRESS_NUM
+    };
+
+    ETL_DECLARE_ENUM_TYPE(ePressType, uint8_t)
+    ETL_ENUM_DEFAULT(FAST_PRESS)
+    ETL_ENUM_DEFAULT(PRESS_TIMEOUT_1)
+    ETL_ENUM_DEFAULT(PRESS_TIMEOUT_2)
+    ETL_ENUM_DEFAULT(PRESS_NUM)
+    ETL_END_ENUM_TYPE
+};
+
+class BUTTON : public etl::fsm,
+               public etl::instance_count<BUTTON>
 {
 public:
     struct buttonCB
@@ -80,17 +99,11 @@ public:
         void *arg = nullptr;
         uint32_t arg2{};
         MilliSeconds m_ms = 0;
+        bool operator<(const buttonCB &rhs) const { return m_ms < rhs.m_ms; }
     };
 
-    enum ePressTypes
-    {
-        FAST_PRESS,
-        PRESS_TIMEOUT_1,
-        PRESS_TIMEOUT_2,
-        PRESS_NUM
-    };
-
-    static constexpr int MAX_CALLBACKS = PRESS_NUM;
+    static constexpr int MAX_CALLBACKS = ePressType::PRESS_NUM;
+    static constexpr int BUTTON_DEBOUNCE_TIME_uS = 10000;
     using callback_list_t = etl::array<buttonCB, MAX_CALLBACKS>;
 
     BUTTON(GPI &gpi);
@@ -103,13 +116,15 @@ private:
     callback_list_t m_releaseCallbacks{};
     xTimerHandle m_timer{};
     bool m_buttonState = false;
+    bool m_ignoreReleaseCallback = false;
     MicroSeconds m_lastPressTime{};
+    Debouncer m_sampler{BUTTON_DEBOUNCE_TIME_uS};
 
-    void runPressCallback(uint8_t index);
-    void runReleaseCallback();
+    void runPressCallback(callback_list_t &cb_list, ePressType press);
+    void runReleaseCallback(callback_list_t &cb_list);
     void stopTimer(bool fromISR = false);
-    void startTimer(int index);
-    eResult registerEvent(buttonCB &&cb, callback_list_t &list);
+    void startTimer(ePressType timeout);
+    eResult registerEvent(buttonCB &&cb, callback_list_t &cb_list);
 
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
@@ -120,30 +135,10 @@ private:
 
     friend class IdleState;
     friend class PressedState;
+
     friend class TWO_BUTTONS;
+    friend class IdleState_2B;
+    friend class PressedState_2B;
 };
-
-// class TWO_BUTTONS : public etl::fsm
-// {
-// public:
-//     TWO_BUTTONS(BUTTON &b1, BUTTON &b2);
-
-// private:
-//     BUTTON &m_b1;
-//     BUTTON &m_b2;
-//     BUTTON::callback_list_t m_callbacks{};
-//     bool ignoreNextRelease = false;
-
-//     void runCallback(int index);
-//     void stopTimer();
-//     void startShortPressTimer();
-//     void startLongPressTimer();
-
-//     static void buttonISR(void *arg);
-//     friend class IdleState2B;
-//     friend class PressedState2B;
-//     friend class PressedShortState2B;
-//     friend class PressedLongState2B;
-// };
 
 #endif
