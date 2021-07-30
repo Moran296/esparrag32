@@ -47,9 +47,9 @@ struct eStateId
     };
 };
 
-class BUTTON;
+class Button;
 
-class IdleState : public etl::fsm_state<BUTTON, IdleState, eStateId::IDLE,
+class IdleState : public etl::fsm_state<Button, IdleState, eStateId::IDLE,
                                         PressEvent>
 {
 public:
@@ -57,7 +57,7 @@ public:
     etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
 };
 
-class PressedState : public etl::fsm_state<BUTTON, PressedState, eStateId::PRESSED,
+class PressedState : public etl::fsm_state<Button, PressedState, eStateId::PRESSED,
                                            ReleaseEvent,
                                            TimerEvent>
 {
@@ -89,25 +89,44 @@ struct ePressType
     ETL_END_ENUM_TYPE
 };
 
-class BUTTON : public etl::fsm,
-               public etl::instance_count<BUTTON>
+class Button : public etl::fsm,
+               public etl::instance_count<Button>
 {
 public:
     struct buttonCB
     {
-        void (*m_cb)(void *, uint32_t) = nullptr;
-        void *arg = nullptr;
-        uint32_t arg2{};
-        MilliSeconds m_ms = 0;
-        bool operator<(const buttonCB &rhs) const { return m_ms < rhs.m_ms; }
+        void (*cb_function)(void *, uint32_t) = nullptr;
+        void *cb_arg1 = nullptr;
+        uint32_t cb_arg2{};
+        MilliSeconds cb_time = 0;
+        bool operator<(const buttonCB &rhs) const { return cb_time < rhs.cb_time; }
     };
 
     static constexpr int MAX_CALLBACKS = ePressType::PRESS_NUM;
     static constexpr int BUTTON_DEBOUNCE_TIME_uS = 10000;
     using callback_list_t = etl::array<buttonCB, MAX_CALLBACKS>;
 
-    BUTTON(GPI &gpi);
+    /*
+        Ctor-
+        @param- gpi in inactive state (active state on startup is not implemented)
+    */
+    Button(GPI &gpi);
+    /*
+        Register to press event-
+        @param- button cb.
+        example: 
+        Button::buttonCB press_short_time = {.cb_function = goo, .cb_arg2 = SHORT_PRESS, .cb_time = Seconds(3)};
+        button.RegisterPress(std::move(press_short_time));
+
+        Note: cb_time == 0 means event will fire on press.
+        Note: registered event can be overwritten if they are in the same time of an previously registered event
+    */
     eResult RegisterPress(buttonCB &&cb);
+    /*
+        Register to release event-
+        Like press event.
+        Note: cb_time == X means event will fire if button released and X time passed
+    */
     eResult RegisterRelease(buttonCB &&cb);
 
 private:
@@ -136,7 +155,7 @@ private:
     friend class IdleState;
     friend class PressedState;
 
-    friend class TWO_BUTTONS;
+    friend class TwoButtons;
     friend class IdleState_2B;
     friend class PressedState_2B;
 };

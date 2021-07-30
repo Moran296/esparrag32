@@ -76,10 +76,10 @@ PressedState_2B::on_event(const ReleaseEvent_2B &event)
     buttonReleased = true;
     if (m_isButton1Released && m_isButton2Released)
     {
+        two_buttons.m_b1.runReleaseCallback(two_buttons.m_releaseCallbacks);
         return eStateId::IDLE;
     }
 
-    two_buttons.m_b1.runReleaseCallback(two_buttons.m_releaseCallbacks);
     return STATE_ID;
 }
 
@@ -102,9 +102,9 @@ PressedState_2B::on_event_unknown(const etl::imessage &event)
     return STATE_ID;
 }
 
-//========TWO_BUTTONS=====
+//========TwoButtons=====
 
-TWO_BUTTONS::TWO_BUTTONS(BUTTON &a, BUTTON &b) : fsm(get_instance_count()), m_b1(a), m_b2(b)
+TwoButtons::TwoButtons(Button &a, Button &b) : fsm(get_instance_count()), m_b1(a), m_b2(b)
 {
     eResult res = m_b1.m_gpi.EnableInterrupt(button1ISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
@@ -117,18 +117,18 @@ TWO_BUTTONS::TWO_BUTTONS(BUTTON &a, BUTTON &b) : fsm(get_instance_count()), m_b1
     start();
 }
 
-eResult TWO_BUTTONS::RegisterPress(BUTTON::buttonCB &&cb)
+eResult TwoButtons::RegisterPress(Button::buttonCB &&cb)
 {
     return m_b1.registerEvent(std::move(cb), m_pressCallbacks);
 }
-eResult TWO_BUTTONS::RegisterRelease(BUTTON::buttonCB &&cb)
+eResult TwoButtons::RegisterRelease(Button::buttonCB &&cb)
 {
     return m_b1.registerEvent(std::move(cb), m_releaseCallbacks);
 }
 
-void TWO_BUTTONS::button1ISR(void *arg)
+void TwoButtons::button1ISR(void *arg)
 {
-    TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(arg);
+    TwoButtons *two_buttons = reinterpret_cast<TwoButtons *>(arg);
     if (!two_buttons->m_sampler.IsValidNow())
         return;
 
@@ -139,9 +139,9 @@ void TWO_BUTTONS::button1ISR(void *arg)
         two_buttons->receive(ReleaseEvent_2B(eButtonID::BUTTON_A));
 }
 
-void TWO_BUTTONS::button2ISR(void *arg)
+void TwoButtons::button2ISR(void *arg)
 {
-    TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(arg);
+    TwoButtons *two_buttons = reinterpret_cast<TwoButtons *>(arg);
     if (!two_buttons->m_sampler.IsValidNow())
         return;
 
@@ -152,13 +152,13 @@ void TWO_BUTTONS::button2ISR(void *arg)
         two_buttons->receive(ReleaseEvent_2B(eButtonID::BUTTON_B));
 }
 
-void TWO_BUTTONS::timerCB(xTimerHandle timer)
+void TwoButtons::timerCB(xTimerHandle timer)
 {
-    TWO_BUTTONS *two_buttons = reinterpret_cast<TWO_BUTTONS *>(pvTimerGetTimerID(timer));
+    TwoButtons *two_buttons = reinterpret_cast<TwoButtons *>(pvTimerGetTimerID(timer));
     two_buttons->receive(TimerEvent_2B());
 }
 
-void TWO_BUTTONS::stopTimer(bool fromISR)
+void TwoButtons::stopTimer(bool fromISR)
 {
     if (fromISR)
         xTimerStopFromISR(m_timer, NULL);
@@ -166,19 +166,19 @@ void TWO_BUTTONS::stopTimer(bool fromISR)
         xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
 }
 
-void TWO_BUTTONS::startTimer(ePressType timeout)
+void TwoButtons::startTimer(ePressType timeout)
 {
     ESPARRAG_ASSERT(timeout.get_value() >= ePressType::PRESS_TIMEOUT_1);
-    if (timeout.get_value() >= BUTTON::MAX_CALLBACKS)
+    if (timeout.get_value() >= Button::MAX_CALLBACKS)
         return;
 
     auto &callback = m_pressCallbacks[timeout.get_value()];
-    bool callbackValid = callback.m_cb != nullptr && callback.m_ms.value() != 0;
+    bool callbackValid = callback.cb_function != nullptr && callback.cb_time.value() != 0;
     if (!callbackValid)
         return;
 
     //callback timeout is the delta between requested time and last callback timeout
-    MilliSeconds ms = callback.m_ms - m_pressCallbacks[timeout.get_value() - 1].m_ms;
+    MilliSeconds ms = callback.cb_time - m_pressCallbacks[timeout.get_value() - 1].cb_time;
     BaseType_t higherPriorityExists = pdFALSE;
     xTimerChangePeriodFromISR(m_timer, ms.toTicks(), &higherPriorityExists);
     xTimerStartFromISR(m_timer, &higherPriorityExists);

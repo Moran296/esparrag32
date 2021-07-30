@@ -75,13 +75,13 @@ void goo(void *arg, uint32_t hello)
 extern "C" void app_main()
 {
     GPI gpi1(17, GPIO_INTR_ANYEDGE);
-    BUTTON a(gpi1);
-    BUTTON::buttonCB press_fast = {.m_cb = goo, .arg2 = FAST_PRESS};
-    BUTTON::buttonCB release_fast = {.m_cb = goo, .arg2 = FAST_RELEASE};
-    BUTTON::buttonCB press_short = {.m_cb = goo, .arg2 = SHORT_PRESS, .m_ms = Seconds(3)};
-    BUTTON::buttonCB release_short = {.m_cb = goo, .arg2 = SHORT_RELEASE, .m_ms = Seconds(3)};
-    BUTTON::buttonCB press_long = {.m_cb = goo, .arg2 = LONG_PRESS, .m_ms = Seconds(5)};
-    BUTTON::buttonCB release_long = {.m_cb = goo, .arg2 = LONG_RELEASE, .m_ms = Seconds(5)};
+    Button a(gpi1);
+    Button::buttonCB press_fast = {.cb_function = goo, .cb_arg2 = FAST_PRESS};
+    Button::buttonCB release_fast = {.cb_function = goo, .cb_arg2 = FAST_RELEASE};
+    Button::buttonCB press_short = {.cb_function = goo, .cb_arg2 = SHORT_PRESS, .cb_time = Seconds(3)};
+    Button::buttonCB release_short = {.cb_function = goo, .cb_arg2 = SHORT_RELEASE, .cb_time = Seconds(3)};
+    Button::buttonCB press_long = {.cb_function = goo, .cb_arg2 = LONG_PRESS, .cb_time = Seconds(5)};
+    Button::buttonCB release_long = {.cb_function = goo, .cb_arg2 = LONG_RELEASE, .cb_time = Seconds(5)};
 
     a.RegisterPress(std::move(press_fast));
     a.RegisterRelease(std::move(release_fast));
@@ -91,14 +91,14 @@ extern "C" void app_main()
     a.RegisterRelease(std::move(release_long));
 
     GPI gpi2(18, GPIO_INTR_ANYEDGE);
-    BUTTON b(gpi2);
-    BUTTON::buttonCB press_fast2 = {.m_cb = goo, .arg2 = 34};
-    BUTTON::buttonCB release_fast2 = {.m_cb = goo, .arg2 = 35};
+    Button b(gpi2);
+    Button::buttonCB press_fast2 = {.cb_function = goo, .cb_arg2 = 34};
+    Button::buttonCB release_fast2 = {.cb_function = goo, .cb_arg2 = 35};
     b.RegisterPress(std::move(press_fast2));
     b.RegisterRelease(std::move(release_fast2));
-    BUTTON::buttonCB b2press = {.m_cb = goo, .arg2 = 55, .m_ms = Seconds(3)};
-    BUTTON::buttonCB b2release = {.m_cb = goo, .arg2 = 66, .m_ms = Seconds(3)};
-    TWO_BUTTONS butt(a, b);
+    Button::buttonCB b2press = {.cb_function = goo, .cb_arg2 = 55, .cb_time = Seconds(3)};
+    Button::buttonCB b2release = {.cb_function = goo, .cb_arg2 = 66, .cb_time = Seconds(3)};
+    TwoButtons butt(a, b);
     butt.RegisterPress(std::move(b2press));
     butt.RegisterRelease(std::move(b2release));
 

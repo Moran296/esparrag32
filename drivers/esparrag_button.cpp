@@ -55,9 +55,9 @@ PressedState::on_event_unknown(const etl::imessage &event)
     return STATE_ID;
 }
 
-// ==========BUTTON==============
+// ==========Button==============
 
-BUTTON::BUTTON(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
+Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 {
     eResult res = m_gpi.EnableInterrupt(buttonISR, this);
     m_buttonState = m_gpi.IsActive();
@@ -74,24 +74,24 @@ BUTTON::BUTTON(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
     start();
 }
 
-eResult BUTTON::RegisterPress(buttonCB &&cb)
+eResult Button::RegisterPress(buttonCB &&cb)
 {
     return registerEvent(std::move(cb), m_pressCallbacks);
 }
 
-eResult BUTTON::RegisterRelease(buttonCB &&cb)
+eResult Button::RegisterRelease(buttonCB &&cb)
 {
     return registerEvent(std::move(cb), m_releaseCallbacks);
 }
 
-eResult BUTTON::registerEvent(buttonCB &&cb, callback_list_t &cb_list)
+eResult Button::registerEvent(buttonCB &&cb, callback_list_t &cb_list)
 {
-    ESPARRAG_ASSERT(cb.m_cb != nullptr);
-    MilliSeconds cbTime = cb.m_ms;
+    ESPARRAG_ASSERT(cb.cb_function != nullptr);
+    MilliSeconds cbTime = cb.cb_time;
     // if timeout is 0, it should be registered as the first callback
     if (cbTime.value() == 0)
     {
-        if (cb_list[0].m_cb != nullptr)
+        if (cb_list[0].cb_function != nullptr)
             ESPARRAG_LOG_WARNING("button event is registered instead of an existing event");
 
         cb_list[ePressType::FAST_PRESS] = cb;
@@ -111,13 +111,13 @@ eResult BUTTON::registerEvent(buttonCB &&cb, callback_list_t &cb_list)
     //otherwise find a place in the timeout section
     for (size_t i = ePressType::PRESS_TIMEOUT_1; i < ePressType::PRESS_NUM; i++)
     {
-        if (cb_list[i].m_ms.value() == 0)
+        if (cb_list[i].cb_time.value() == 0)
         {
             //we found an empty place
             return cb_sorted_inserter(i);
         }
 
-        if (cb_list[i].m_ms == cbTime)
+        if (cb_list[i].cb_time == cbTime)
         {
             //we found a callback with an equal time, we will replace it
             ESPARRAG_LOG_WARNING("button event is registered instead of an existing event");
@@ -129,21 +129,21 @@ eResult BUTTON::registerEvent(buttonCB &&cb, callback_list_t &cb_list)
     return eResult::ERROR_INVALID_PARAMETER;
 }
 
-void BUTTON::runPressCallback(callback_list_t &cb_list, ePressType press)
+void Button::runPressCallback(callback_list_t &cb_list, ePressType press)
 {
     if (press.get_value() >= MAX_CALLBACKS)
         return;
 
     auto &callback = cb_list[press];
-    if (callback.m_cb != nullptr)
+    if (callback.cb_function != nullptr)
     {
         BaseType_t higherPriorityExists;
-        xTimerPendFunctionCallFromISR(callback.m_cb, callback.arg, callback.arg2, &higherPriorityExists);
+        xTimerPendFunctionCallFromISR(callback.cb_function, callback.cb_arg1, callback.cb_arg2, &higherPriorityExists);
         YIELD_FROM_ISR_IF(higherPriorityExists);
     }
 }
 
-void BUTTON::runReleaseCallback(callback_list_t &cb_list)
+void Button::runReleaseCallback(callback_list_t &cb_list)
 {
     if (m_ignoreReleaseCallback)
     {
@@ -158,12 +158,12 @@ void BUTTON::runReleaseCallback(callback_list_t &cb_list)
     for (int i = ePressType::PRESS_TIMEOUT_2; i >= ePressType::FAST_PRESS; i--)
     {
         auto &callback = cb_list[i];
-        if (callback.m_cb != nullptr)
+        if (callback.cb_function != nullptr)
         {
-            if (timePassedSincePress >= callback.m_ms)
+            if (timePassedSincePress >= callback.cb_time)
             {
                 BaseType_t higherPriorityExists;
-                xTimerPendFunctionCallFromISR(callback.m_cb, callback.arg, callback.arg2, &higherPriorityExists);
+                xTimerPendFunctionCallFromISR(callback.cb_function, callback.cb_arg1, callback.cb_arg2, &higherPriorityExists);
                 YIELD_FROM_ISR_IF(higherPriorityExists);
                 return;
             }
@@ -171,7 +171,7 @@ void BUTTON::runReleaseCallback(callback_list_t &cb_list)
     }
 }
 
-void BUTTON::stopTimer(bool fromISR)
+void Button::stopTimer(bool fromISR)
 {
     if (fromISR)
         xTimerStopFromISR(m_timer, NULL);
@@ -179,29 +179,29 @@ void BUTTON::stopTimer(bool fromISR)
         xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
 }
 
-void BUTTON::startTimer(ePressType timeout)
+void Button::startTimer(ePressType timeout)
 {
     ESPARRAG_ASSERT(timeout.get_value() >= ePressType::PRESS_TIMEOUT_1);
     if (timeout.get_value() >= MAX_CALLBACKS)
         return;
 
     auto &callback = m_pressCallbacks[timeout.get_value()];
-    bool callbackValid = callback.m_cb != nullptr && callback.m_ms.value() != 0;
+    bool callbackValid = callback.cb_function != nullptr && callback.cb_time.value() != 0;
     if (!callbackValid)
         return;
 
     //callback timeout is the delta between requested time and last callback timeout
-    MilliSeconds ms = callback.m_ms - m_pressCallbacks[timeout.get_value() - 1].m_ms;
+    MilliSeconds ms = callback.cb_time - m_pressCallbacks[timeout.get_value() - 1].cb_time;
     BaseType_t higherPriorityExists = pdFALSE;
     xTimerChangePeriodFromISR(m_timer, ms.toTicks(), &higherPriorityExists);
     xTimerStartFromISR(m_timer, &higherPriorityExists);
     YIELD_FROM_ISR_IF(higherPriorityExists);
 }
 
-void IRAM_ATTR BUTTON::buttonISR(void *arg)
+void IRAM_ATTR Button::buttonISR(void *arg)
 {
     ets_printf("button isr");
-    BUTTON *button = reinterpret_cast<BUTTON *>(arg);
+    Button *button = reinterpret_cast<Button *>(arg);
     if (!button->m_sampler.IsValidNow())
         return;
 
@@ -212,8 +212,8 @@ void IRAM_ATTR BUTTON::buttonISR(void *arg)
         button->receive(ReleaseEvent());
 }
 
-void BUTTON::timerCB(xTimerHandle timer)
+void Button::timerCB(xTimerHandle timer)
 {
-    BUTTON *button = reinterpret_cast<BUTTON *>(pvTimerGetTimerID(timer));
+    Button *button = reinterpret_cast<Button *>(pvTimerGetTimerID(timer));
     button->receive(TimerEvent());
 }
