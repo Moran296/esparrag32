@@ -117,13 +117,13 @@ TwoButtons::TwoButtons(Button &a, Button &b) : fsm(get_instance_count()), m_b1(a
     start();
 }
 
-eResult TwoButtons::RegisterPress(Button::buttonCB &&cb)
+eResult TwoButtons::RegisterPress(const Button::buttonCB &cb)
 {
-    return m_b1.registerEvent(std::move(cb), m_pressCallbacks);
+    return m_b1.registerEvent(cb, m_pressCallbacks);
 }
-eResult TwoButtons::RegisterRelease(Button::buttonCB &&cb)
+eResult TwoButtons::RegisterRelease(const Button::buttonCB &cb)
 {
-    return m_b1.registerEvent(std::move(cb), m_releaseCallbacks);
+    return m_b1.registerEvent(cb, m_releaseCallbacks);
 }
 
 void TwoButtons::button1ISR(void *arg)

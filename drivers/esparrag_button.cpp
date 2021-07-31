@@ -59,6 +59,7 @@ PressedState::on_event_unknown(const etl::imessage &event)
 
 Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 {
+    ESPARRAG_ASSERT(m_gpi.GetInterruptType() == GPIO_INTR_ANYEDGE);
     eResult res = m_gpi.EnableInterrupt(buttonISR, this);
     m_buttonState = m_gpi.IsActive();
     if (m_buttonState)
@@ -74,20 +75,40 @@ Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
     start();
 }
 
-eResult Button::RegisterPress(buttonCB &&cb)
+eResult Button::RegisterPress(const buttonCB &cb)
 {
-    return registerEvent(std::move(cb), m_pressCallbacks);
+    return registerEvent(cb, m_pressCallbacks);
 }
 
-eResult Button::RegisterRelease(buttonCB &&cb)
+eResult Button::RegisterRelease(const buttonCB &cb)
 {
-    return registerEvent(std::move(cb), m_releaseCallbacks);
+    return registerEvent(cb, m_releaseCallbacks);
 }
 
-eResult Button::registerEvent(buttonCB &&cb, callback_list_t &cb_list)
+eResult Button::registerEvent(const buttonCB &cb, callback_list_t &cb_list)
 {
     ESPARRAG_ASSERT(cb.cb_function != nullptr);
     MilliSeconds cbTime = cb.cb_time;
+
+    //utility for inserting and reordering
+    auto cb_sorted_inserter = [&cb_list, &cb](int i)
+    {
+        cb_list[i] = cb;
+        ESPARRAG_LOG_INFO("i = %d", i);
+        for (size_t j = 0; j <= i; j++)
+        {
+            ESPARRAG_LOG_INFO("j %d. time %d", i, cb_list[j].cb_time.value());
+        }
+        etl::sort(cb_list.begin(), cb_list.begin() + i + 1);
+        ESPARRAG_LOG_INFO("event written as %s", ePressType(i).c_str());
+        for (size_t j = 0; j <= i; j++)
+        {
+            ESPARRAG_LOG_INFO("j %d. time %d", j, cb_list[j].cb_time.value());
+        }
+
+        return eResult::SUCCESS;
+    };
+
     // if timeout is 0, it should be registered as the first callback
     if (cbTime.value() == 0)
     {
@@ -98,15 +119,6 @@ eResult Button::registerEvent(buttonCB &&cb, callback_list_t &cb_list)
         ESPARRAG_LOG_INFO("event written as %s", ePressType(0).c_str());
         return eResult::SUCCESS;
     }
-
-    //utility for inserting and reordering
-    auto cb_sorted_inserter = [&cb_list, &cb](int i)
-    {
-        cb_list[i] = cb;
-        etl::sort(cb_list.begin(), cb_list.begin() + i);
-        ESPARRAG_LOG_INFO("event written as %s", ePressType(i).c_str());
-        return eResult::SUCCESS;
-    };
 
     //otherwise find a place in the timeout section
     for (size_t i = ePressType::PRESS_TIMEOUT_1; i < ePressType::PRESS_NUM; i++)

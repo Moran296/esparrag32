@@ -103,31 +103,38 @@ public:
     };
 
     static constexpr int MAX_CALLBACKS = ePressType::PRESS_NUM;
-    static constexpr int BUTTON_DEBOUNCE_TIME_uS = 10000;
+    static constexpr int BUTTON_DEBOUNCE_TIME_uS = 1500;
     using callback_list_t = etl::array<buttonCB, MAX_CALLBACKS>;
 
     /*
-        Ctor-
-        @param- gpi in inactive state (active state on startup is not implemented)
+        CTOR-
+        Note: gpi must be in inactive state at ctor time (active state on startup is not implemented)
+        Note: gpi interrupt type must be GPIO_INTR_ANYEDGE
+        Note: above conditions are asserted in ctor
     */
     Button(GPI &gpi);
     /*
         Register to press event-
         @param- button cb.
         example: 
-        Button::buttonCB press_short_time = {.cb_function = goo, .cb_arg2 = SHORT_PRESS, .cb_time = Seconds(3)};
-        button.RegisterPress(std::move(press_short_time));
+        a quick press -------->
+        Button::buttonCB a_press = {.cb_function = function_for_fast_press, .cb_arg1 = nullptr, .cb_arg2 = 1, .cb_time = Seconds(3)};
+        button.RegisterPress(a_press);
+        a longer press -------->
+        a_press.cb_function = function_for_longer_press
+        a_press.cb_time = Seconds(3);
+        button.RegisterPress(a_press);
 
         Note: cb_time == 0 means event will fire on press.
         Note: registered event can be overwritten if they are in the same time of an previously registered event
     */
-    eResult RegisterPress(buttonCB &&cb);
+    eResult RegisterPress(const buttonCB &cb);
     /*
         Register to release event-
-        Like press event.
+        Refer to press *RegisterPress* documetation
         Note: cb_time == X means event will fire if button released and X time passed
     */
-    eResult RegisterRelease(buttonCB &&cb);
+    eResult RegisterRelease(const buttonCB &cb);
 
 private:
     GPI &m_gpi;
@@ -143,7 +150,7 @@ private:
     void runReleaseCallback(callback_list_t &cb_list);
     void stopTimer(bool fromISR = false);
     void startTimer(ePressType timeout);
-    eResult registerEvent(buttonCB &&cb, callback_list_t &cb_list);
+    eResult registerEvent(const buttonCB &cb, callback_list_t &cb_list);
 
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);

@@ -73,28 +73,33 @@ class TwoButtons : public etl::fsm, public etl::instance_count<Button> //for fsm
 {
 public:
     /*
-        Ctor-
-        @param- Two buttons in inactive state
+        CTOR-
+        @param- Two buttons in inactive state!
     */
     TwoButtons(Button &a, Button &b);
     /*
-        Register to press event-
+        Register to press event- (Exactly like one button equivalent function)
         @param- button cb.
         example: 
-        Button::buttonCB press_short_time = {.cb_function = goo, .cb_arg2 = SHORT_PRESS, .cb_time = Seconds(3)};
-        two_buttons.RegisterPress(std::move(press_short_time));
+        a quick press -------->
+        Button::buttonCB a_press = {.cb_function = function_for_fast_press, .cb_arg1 = nullptr, .cb_arg2 = 1, .cb_time = Seconds(3)};
+        two_buttons.RegisterPress(a_press);
+        a longer press -------->
+        a_press.cb_function = function_for_longer_press
+        a_press.cb_time = Seconds(3);
+        two_buttons.RegisterPress(a_press);
 
         Note: cb_time == 0 means event will fire on press.
         Note: registered event can be overwritten if they are in the same time of an previously registered event
         Note: buttons won't fire release callbacks when released after been in a two buttons event
     */
-    eResult RegisterPress(Button::buttonCB &&cb);
+    eResult RegisterPress(const Button::buttonCB &cb);
     /*
         Register to release event-
-        Like press event.
+        Refer to press *RegisterPress* documetation
         Note: cb_time == X means event will fire if one of the two buttons released and X time passed
     */
-    eResult RegisterRelease(Button::buttonCB &&cb);
+    eResult RegisterRelease(const Button::buttonCB &cb);
 
 private:
     Button &m_b1;
