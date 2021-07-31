@@ -83,17 +83,17 @@ public:
     operator int() const { return m_ms; }
     TickType_t toTicks() const { return pdMS_TO_TICKS(m_ms); }
 
-    uint64_t value() const { return m_ms; }
+    uint32_t value() const { return m_ms; }
     size_t size() const { return sizeof(m_ms); }
     size_t capacity() const { return sizeof(m_ms); }
-    uint64_t *data() { return &m_ms; }
+    uint32_t *data() { return &m_ms; }
 
     OVERLOAD_ALL_COMPARISON_OPERATORS(MilliSeconds, m_ms)
     MilliSeconds &operator=(MilliSeconds const &) = default;
     MilliSeconds(MilliSeconds const &) = default;
 
 private:
-    uint64_t m_ms;
+    uint32_t m_ms;
 };
 
 class MicroSeconds
@@ -117,6 +117,5 @@ public:
 private:
     uint64_t m_us;
 };
-
 
 #endif
