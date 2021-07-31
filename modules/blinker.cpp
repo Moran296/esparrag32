@@ -12,6 +12,8 @@ Blinker::Blinker(GPO &gpo, MilliSeconds on, MilliSeconds off, int times) : m_gpo
 
 eResult Blinker::Start(bool fromISR)
 {
+    m_gpo--;
+
     if (!fromISR)
     {
         BaseType_t success = xTimerStart(m_timer, DEFAULT_FREERTOS_TIMEOUT);
@@ -36,6 +38,12 @@ eResult Blinker::Start(bool fromISR)
 
 eResult Blinker::Stop(bool fromISR)
 {
+    if (m_state)
+    {
+        m_state = false;
+        m_gpo--;
+    }
+
     if (!fromISR)
     {
         BaseType_t success = xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
