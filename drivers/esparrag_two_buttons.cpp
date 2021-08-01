@@ -106,7 +106,12 @@ PressedState_2B::on_event_unknown(const etl::imessage &event)
 
 TwoButtons::TwoButtons(Button &a, Button &b) : fsm(get_instance_count()), m_b1(a), m_b2(b)
 {
-    eResult res = m_b1.m_gpi.EnableInterrupt(button1ISR, this);
+    eResult res = eResult::SUCCESS;
+    res = m_b1.m_gpi.DisableInterrupt();
+    ESPARRAG_ASSERT(res == eResult::SUCCESS);
+    res = m_b2.m_gpi.DisableInterrupt();
+    ESPARRAG_ASSERT(res == eResult::SUCCESS);
+    res = m_b1.m_gpi.EnableInterrupt(button1ISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
     res = m_b2.m_gpi.EnableInterrupt(button2ISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
