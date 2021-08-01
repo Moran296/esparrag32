@@ -32,8 +32,8 @@ eResult Wifi::Init()
 
     auto changeCB = DB_PARAM_CALLBACK(Settings::Config)::create<Wifi, &Wifi::dbConfigChange>(*this);
     Settings::Config.Subscribe<CONFIG_ID::STA_SSID,
-                              CONFIG_ID::AP_SSID,
-                              CONFIG_ID::AP_PASSWORD>(changeCB);
+                               CONFIG_ID::AP_SSID,
+                               CONFIG_ID::AP_PASSWORD>(changeCB);
 
     ap_netif = esp_netif_create_default_wifi_ap();
     ESPARRAG_ASSERT(ap_netif != nullptr);
@@ -239,7 +239,6 @@ void Wifi::eventHandler(void *event_handler_arg,
 
             retries = 0;
         }
-
         else if (event_id == WIFI_EVENT_STA_DISCONNECTED)
         {
             wifi->internet_connected = false;
@@ -279,5 +278,14 @@ void Wifi::eventHandler(void *event_handler_arg,
         {
             ESPARRAG_LOG_INFO("CLIENT DISCONNECTED FROM AP");
         }
+    }
+    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
+    {
+        ESPARRAG_LOG_INFO("GOT IP");
+        ip_event_got_ip_t *ipevent = (ip_event_got_ip_t *)event_data;
+        char newip[20]{};
+        sprintf(newip, IPSTR, IP2STR(&ipevent->ip_info.ip));
+        Settings::Status.Set<STATUS_ID::STA_IP>(newip);
+        Settings::Status.Commit();
     }
 }

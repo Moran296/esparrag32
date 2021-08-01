@@ -31,14 +31,14 @@ struct STATUS_ID
     enum enum_type
     {
         WIFI_STATE,
-        SOME_NUM,
+        STA_IP,
 
         NUM
     };
 
     ETL_DECLARE_ENUM_TYPE(STATUS_ID, uint16_t)
     ETL_ENUM_DEFAULT(WIFI_STATE)
-    ETL_ENUM_DEFAULT(SOME_NUM)
+    ETL_ENUM_DEFAULT(STA_IP)
     ETL_END_ENUM_TYPE
 };
 
@@ -63,7 +63,7 @@ public:
 
     inline static Database Status{"status_db",
                                   Data<STATUS_ID::WIFI_STATE, uint8_t>{WIFI_OFFLINE, WIFI_NUM - 1, WIFI_OFFLINE, false},
-                                  Data<STATUS_ID::SOME_NUM, uint8_t>{0, 250, 50, false}};
+                                  Data<STATUS_ID::STA_IP, const char *>{"", false}};
 };
 
 #endif
