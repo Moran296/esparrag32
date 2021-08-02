@@ -3,7 +3,7 @@
 
 // ========IDLE STATE============
 etl::fsm_state_id_t
-IdleState_2B::on_enter_state()
+TwoButtons::IdleState_2B::on_enter_state()
 {
     m_isButton1Pressed = false;
     m_isButton2Pressed = false;
@@ -11,7 +11,7 @@ IdleState_2B::on_enter_state()
 }
 
 etl::fsm_state_id_t
-IdleState_2B::on_event(const PressEvent_2B &event)
+TwoButtons::IdleState_2B::on_event(const PressEvent_2B &event)
 {
     auto &two_buttons = get_fsm_context();
     auto &buttonPressed = event.m_buttonId == eButtonID::BUTTON_A ? m_isButton1Pressed : m_isButton2Pressed;
@@ -19,32 +19,32 @@ IdleState_2B::on_event(const PressEvent_2B &event)
     if (m_isButton1Pressed && m_isButton2Pressed)
     {
         //one button previously pressed, should release it (without running its callback)
-        auto &previousPressedButton = event.m_buttonId == eButtonID::BUTTON_A ? two_buttons.m_b2 : two_buttons.m_b1;
+        auto &previousPressedButton = event.m_buttonId == eButtonID::BUTTON_A ? two_buttons.m_button2 : two_buttons.m_button1;
         previousPressedButton.m_ignoreReleaseCallback = true;
         previousPressedButton.receive(ReleaseEvent());
         return eStateId::PRESSED;
     }
 
     //only one button was pressed, send him a press event
-    auto &button = m_isButton1Pressed ? two_buttons.m_b1 : two_buttons.m_b2;
+    auto &button = m_isButton1Pressed ? two_buttons.m_button1 : two_buttons.m_button2;
     button.receive(PressEvent());
     return STATE_ID;
 }
 
 etl::fsm_state_id_t
-IdleState_2B::on_event(const ReleaseEvent_2B &event)
+TwoButtons::IdleState_2B::on_event(const ReleaseEvent_2B &event)
 {
     auto &buttonReleased = event.m_buttonId == eButtonID::BUTTON_A ? m_isButton1Pressed : m_isButton2Pressed;
     buttonReleased = false;
 
     auto &two_buttons = get_fsm_context();
-    auto &button = event.m_buttonId == eButtonID::BUTTON_A ? two_buttons.m_b1 : two_buttons.m_b2;
+    auto &button = event.m_buttonId == eButtonID::BUTTON_A ? two_buttons.m_button1 : two_buttons.m_button2;
     button.receive(ReleaseEvent());
     return STATE_ID;
 }
 
 etl::fsm_state_id_t
-IdleState_2B::on_event_unknown(const etl::imessage &event)
+TwoButtons::IdleState_2B::on_event_unknown(const etl::imessage &event)
 {
     ets_printf("idle unknown 2b %d\n", (uint8_t)get_state_id());
     return STATE_ID;
@@ -52,13 +52,13 @@ IdleState_2B::on_event_unknown(const etl::imessage &event)
 
 // ========PRESSED STATE============
 etl::fsm_state_id_t
-PressedState_2B::on_enter_state()
+TwoButtons::PressedState_2B::on_enter_state()
 {
     m_isButton1Released = false;
     m_isButton2Released = false;
 
     auto &two_buttons = get_fsm_context();
-    two_buttons.m_b1.runPressCallback(two_buttons.m_pressCallbacks, ePressType::FAST_PRESS);
+    two_buttons.m_button1.runPressCallback(two_buttons.m_pressCallbacks, ePressType::FAST_PRESS);
 
     m_timeouts = ePressType::PRESS_TIMEOUT_1;
     two_buttons.m_lastPressTime = esp_timer_get_time();
@@ -67,7 +67,7 @@ PressedState_2B::on_enter_state()
 }
 
 etl::fsm_state_id_t
-PressedState_2B::on_event(const ReleaseEvent_2B &event)
+TwoButtons::PressedState_2B::on_event(const ReleaseEvent_2B &event)
 {
     auto &two_buttons = get_fsm_context();
     two_buttons.stopTimer(true);
@@ -76,7 +76,7 @@ PressedState_2B::on_event(const ReleaseEvent_2B &event)
     buttonReleased = true;
     if (m_isButton1Released && m_isButton2Released)
     {
-        two_buttons.m_b1.runReleaseCallback(two_buttons.m_releaseCallbacks);
+        two_buttons.m_button1.runReleaseCallback(two_buttons.m_releaseCallbacks);
         return eStateId::IDLE;
     }
 
@@ -84,10 +84,10 @@ PressedState_2B::on_event(const ReleaseEvent_2B &event)
 }
 
 etl::fsm_state_id_t
-PressedState_2B::on_event(const TimerEvent_2B &event)
+TwoButtons::PressedState_2B::on_event(const TimerEvent_2B &event)
 {
     auto &two_button = get_fsm_context();
-    two_button.m_b1.runPressCallback(two_button.m_pressCallbacks, ePressType(m_timeouts));
+    two_button.m_button1.runPressCallback(two_button.m_pressCallbacks, ePressType(m_timeouts));
 
     m_timeouts++;
     two_button.startTimer(ePressType(m_timeouts));
@@ -95,7 +95,7 @@ PressedState_2B::on_event(const TimerEvent_2B &event)
 }
 
 etl::fsm_state_id_t
-PressedState_2B::on_event_unknown(const etl::imessage &event)
+TwoButtons::PressedState_2B::on_event_unknown(const etl::imessage &event)
 {
     m_timeouts = 0;
     ets_printf("pressed unknown 2b %d\n", (uint8_t)get_state_id());
@@ -104,31 +104,31 @@ PressedState_2B::on_event_unknown(const etl::imessage &event)
 
 //========TwoButtons=====
 
-TwoButtons::TwoButtons(Button &a, Button &b) : fsm(get_instance_count()), m_b1(a), m_b2(b)
+TwoButtons::TwoButtons(Button &a, Button &b) : fsm(get_instance_count()), m_button1(a), m_button2(b)
 {
     eResult res = eResult::SUCCESS;
-    res = m_b1.m_gpi.DisableInterrupt();
+    res = m_button1.m_gpi.DisableInterrupt();
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
-    res = m_b2.m_gpi.DisableInterrupt();
+    res = m_button2.m_gpi.DisableInterrupt();
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
-    res = m_b1.m_gpi.EnableInterrupt(button1ISR, this);
+    res = m_button1.m_gpi.EnableInterrupt(button1ISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
-    res = m_b2.m_gpi.EnableInterrupt(button2ISR, this);
+    res = m_button2.m_gpi.EnableInterrupt(button2ISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
 
     m_timer = xTimerCreate("two_buttons", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
-    set_states(stateList, etl::size(stateList));
+    set_states(m_stateList, etl::size(m_stateList));
     start();
 }
 
 eResult TwoButtons::RegisterPress(const Button::buttonCB &cb)
 {
-    return m_b1.registerEvent(cb, m_pressCallbacks);
+    return m_button1.registerEvent(cb, m_pressCallbacks);
 }
 eResult TwoButtons::RegisterRelease(const Button::buttonCB &cb)
 {
-    return m_b1.registerEvent(cb, m_releaseCallbacks);
+    return m_button1.registerEvent(cb, m_releaseCallbacks);
 }
 
 void TwoButtons::button1ISR(void *arg)
@@ -137,7 +137,7 @@ void TwoButtons::button1ISR(void *arg)
     if (!two_buttons->m_sampler.IsValidNow())
         return;
 
-    Button &button = two_buttons->m_b1;
+    Button &button = two_buttons->m_button1;
     button.m_buttonState = !button.m_buttonState;
     if (button.m_buttonState)
     {
@@ -157,7 +157,7 @@ void TwoButtons::button2ISR(void *arg)
     if (!two_buttons->m_sampler.IsValidNow())
         return;
 
-    Button &button = two_buttons->m_b2;
+    Button &button = two_buttons->m_button2;
     button.m_buttonState = !button.m_buttonState;
     if (button.m_buttonState)
     {

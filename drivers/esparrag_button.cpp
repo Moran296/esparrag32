@@ -3,20 +3,20 @@
 
 // ========IDLE STATE============
 etl::fsm_state_id_t
-IdleState::on_event(const PressEvent &event)
+Button::IdleState::on_event(const PressEvent &event)
 {
     return eStateId::PRESSED;
 }
 
 etl::fsm_state_id_t
-IdleState::on_event_unknown(const etl::imessage &event)
+Button::IdleState::on_event_unknown(const etl::imessage &event)
 {
     return STATE_ID;
 }
 
 // ========PRESSED STATE============
 etl::fsm_state_id_t
-PressedState::on_enter_state()
+Button::PressedState::on_enter_state()
 {
     auto &button = get_fsm_context();
     button.runPressCallback(button.m_pressCallbacks, ePressType::FAST_PRESS);
@@ -28,7 +28,7 @@ PressedState::on_enter_state()
 }
 
 etl::fsm_state_id_t
-PressedState::on_event(const ReleaseEvent &event)
+Button::PressedState::on_event(const ReleaseEvent &event)
 {
     auto &button = get_fsm_context();
     button.stopTimer(true);
@@ -37,7 +37,7 @@ PressedState::on_event(const ReleaseEvent &event)
 }
 
 etl::fsm_state_id_t
-PressedState::on_event(const TimerEvent &event)
+Button::PressedState::on_event(const TimerEvent &event)
 {
     auto &button = get_fsm_context();
     button.runPressCallback(button.m_pressCallbacks, ePressType(m_timeouts));
@@ -48,7 +48,7 @@ PressedState::on_event(const TimerEvent &event)
 }
 
 etl::fsm_state_id_t
-PressedState::on_event_unknown(const etl::imessage &event)
+Button::PressedState::on_event_unknown(const etl::imessage &event)
 {
     m_timeouts = 0;
     ets_printf("pressed unknown %d\n", (uint8_t)get_state_id());
@@ -71,7 +71,7 @@ Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 
     m_timer = xTimerCreate("button", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
-    set_states(stateList, etl::size(stateList));
+    set_states(m_stateList, etl::size(m_stateList));
 
     res = m_gpi.EnableInterrupt(buttonISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);

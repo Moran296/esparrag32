@@ -20,6 +20,7 @@ enum eButtonID
     BUTTON_MAX
 };
 
+//Button Events
 class PressEvent_2B : public etl::message<ButtonEvent::PRESS>
 {
 public:
@@ -36,37 +37,6 @@ public:
 
 class TimerEvent_2B : public etl::message<ButtonEvent::TIMER_EVENT>
 {
-};
-
-class TwoButtons;
-
-class IdleState_2B : public etl::fsm_state<TwoButtons, IdleState_2B, eStateId::IDLE,
-                                           PressEvent_2B, ReleaseEvent_2B>
-{
-public:
-    etl::fsm_state_id_t on_enter_state();
-    etl::fsm_state_id_t on_event(const PressEvent_2B &event);
-    etl::fsm_state_id_t on_event(const ReleaseEvent_2B &event);
-    etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-
-private:
-    bool m_isButton1Pressed = false;
-    bool m_isButton2Pressed = false;
-};
-
-class PressedState_2B : public etl::fsm_state<TwoButtons, PressedState_2B, eStateId::PRESSED,
-                                              TimerEvent_2B, ReleaseEvent_2B>
-{
-public:
-    etl::fsm_state_id_t on_enter_state();
-    etl::fsm_state_id_t on_event(const ReleaseEvent_2B &event);
-    etl::fsm_state_id_t on_event(const TimerEvent_2B &event);
-    etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-
-private:
-    bool m_isButton1Released = false;
-    bool m_isButton2Released = false;
-    int m_timeouts = 0;
 };
 
 class TwoButtons : public etl::fsm, public etl::instance_count<Button> //for fsm router num
@@ -102,17 +72,15 @@ public:
     eResult RegisterRelease(const Button::buttonCB &cb);
 
 private:
-    Button &m_b1;
-    Button &m_b2;
+    Button &m_button1;
+    Button &m_button2;
     bool m_state = false;
 
     Button::callback_list_t m_pressCallbacks{};
     Button::callback_list_t m_releaseCallbacks{};
     xTimerHandle m_timer{};
     MicroSeconds m_lastPressTime{};
-    IdleState_2B m_idle;
-    PressedState_2B m_pressed;
-    etl::ifsm_state *stateList[eStateId::NUM]{&m_idle, &m_pressed};
+    etl::ifsm_state *m_stateList[eStateId::NUM]{&m_idle, &m_pressed};
     Debouncer m_sampler{Button::BUTTON_DEBOUNCE_TIME_uS};
 
     void stopTimer(bool fromISR = false);
@@ -122,8 +90,38 @@ private:
     static void button1ISR(void *arg);
     static void button2ISR(void *arg);
 
-    friend class IdleState_2B;
-    friend class PressedState_2B;
+    //State machine states
+    class IdleState_2B : public etl::fsm_state<TwoButtons, IdleState_2B, eStateId::IDLE,
+                                               PressEvent_2B, ReleaseEvent_2B>
+    {
+    public:
+        etl::fsm_state_id_t on_enter_state();
+        etl::fsm_state_id_t on_event(const PressEvent_2B &event);
+        etl::fsm_state_id_t on_event(const ReleaseEvent_2B &event);
+        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
+
+    private:
+        bool m_isButton1Pressed = false;
+        bool m_isButton2Pressed = false;
+    };
+
+    class PressedState_2B : public etl::fsm_state<TwoButtons, PressedState_2B, eStateId::PRESSED,
+                                                  TimerEvent_2B, ReleaseEvent_2B>
+    {
+    public:
+        etl::fsm_state_id_t on_enter_state();
+        etl::fsm_state_id_t on_event(const ReleaseEvent_2B &event);
+        etl::fsm_state_id_t on_event(const TimerEvent_2B &event);
+        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
+
+    private:
+        bool m_isButton1Released = false;
+        bool m_isButton2Released = false;
+        int m_timeouts = 0;
+    };
+
+    IdleState_2B m_idle;
+    PressedState_2B m_pressed;
 };
 
 #endif

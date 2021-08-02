@@ -47,30 +47,6 @@ struct eStateId
     };
 };
 
-class Button;
-
-class IdleState : public etl::fsm_state<Button, IdleState, eStateId::IDLE,
-                                        PressEvent>
-{
-public:
-    etl::fsm_state_id_t on_event(const PressEvent &event);
-    etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-};
-
-class PressedState : public etl::fsm_state<Button, PressedState, eStateId::PRESSED,
-                                           ReleaseEvent,
-                                           TimerEvent>
-{
-public:
-    etl::fsm_state_id_t on_enter_state();
-    etl::fsm_state_id_t on_event(const ReleaseEvent &event);
-    etl::fsm_state_id_t on_event(const TimerEvent &event);
-    etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-
-private:
-    int m_timeouts = 0;
-};
-
 struct ePressType
 {
     enum enum_type
@@ -93,6 +69,8 @@ class Button : public etl::fsm,
                public etl::instance_count<Button>
 {
 public:
+    friend class TwoButtons;
+
     struct buttonCB
     {
         void (*cb_function)(void *, uint32_t) = nullptr;
@@ -155,16 +133,33 @@ private:
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
 
+    etl::ifsm_state *m_stateList[eStateId::NUM]{&m_idle, &m_pressed};
+
+    //Button states
+    class IdleState : public etl::fsm_state<Button, IdleState, eStateId::IDLE,
+                                            PressEvent>
+    {
+    public:
+        etl::fsm_state_id_t on_event(const PressEvent &event);
+        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
+    };
+
+    class PressedState : public etl::fsm_state<Button, PressedState, eStateId::PRESSED,
+                                               ReleaseEvent,
+                                               TimerEvent>
+    {
+    public:
+        etl::fsm_state_id_t on_enter_state();
+        etl::fsm_state_id_t on_event(const ReleaseEvent &event);
+        etl::fsm_state_id_t on_event(const TimerEvent &event);
+        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
+
+    private:
+        int m_timeouts = 0;
+    };
+
     IdleState m_idle;
     PressedState m_pressed;
-    etl::ifsm_state *stateList[eStateId::NUM]{&m_idle, &m_pressed};
-
-    friend class IdleState;
-    friend class PressedState;
-
-    friend class TwoButtons;
-    friend class IdleState_2B;
-    friend class PressedState_2B;
 };
 
 #endif
