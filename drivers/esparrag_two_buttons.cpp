@@ -137,11 +137,18 @@ void TwoButtons::button1ISR(void *arg)
     if (!two_buttons->m_sampler.IsValidNow())
         return;
 
-    two_buttons->m_b1.m_buttonState = !two_buttons->m_b1.m_buttonState;
-    if (two_buttons->m_b1.m_buttonState)
+    Button &button = two_buttons->m_b1;
+    button.m_buttonState = !button.m_buttonState;
+    if (button.m_buttonState)
+    {
+        button.m_gpi.SetInterruptType(GPIO_INTR_LOW_LEVEL);
         two_buttons->receive(PressEvent_2B(eButtonID::BUTTON_A));
+    }
     else
+    {
+        button.m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
         two_buttons->receive(ReleaseEvent_2B(eButtonID::BUTTON_A));
+    }
 }
 
 void TwoButtons::button2ISR(void *arg)
@@ -150,11 +157,18 @@ void TwoButtons::button2ISR(void *arg)
     if (!two_buttons->m_sampler.IsValidNow())
         return;
 
-    two_buttons->m_b2.m_buttonState = !two_buttons->m_b2.m_buttonState;
-    if (two_buttons->m_b2.m_buttonState)
+    Button &button = two_buttons->m_b2;
+    button.m_buttonState = !button.m_buttonState;
+    if (button.m_buttonState)
+    {
+        button.m_gpi.SetInterruptType(GPIO_INTR_LOW_LEVEL);
         two_buttons->receive(PressEvent_2B(eButtonID::BUTTON_B));
+    }
     else
+    {
+        button.m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
         two_buttons->receive(ReleaseEvent_2B(eButtonID::BUTTON_B));
+    }
 }
 
 void TwoButtons::timerCB(xTimerHandle timer)

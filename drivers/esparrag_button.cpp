@@ -59,8 +59,9 @@ PressedState::on_event_unknown(const etl::imessage &event)
 
 Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 {
-    ESPARRAG_ASSERT(m_gpi.GetInterruptType() == GPIO_INTR_ANYEDGE);
-    eResult res = m_gpi.EnableInterrupt(buttonISR, this);
+    eResult res = m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
+    ESPARRAG_ASSERT(res == eResult::SUCCESS);
+
     m_buttonState = m_gpi.IsActive();
     if (m_buttonState)
     {
@@ -68,10 +69,12 @@ Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
         ESPARRAG_ASSERT(m_buttonState == false);
     }
 
-    ESPARRAG_ASSERT(res == eResult::SUCCESS);
     m_timer = xTimerCreate("button", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
     set_states(stateList, etl::size(stateList));
+
+    res = m_gpi.EnableInterrupt(buttonISR, this);
+    ESPARRAG_ASSERT(res == eResult::SUCCESS);
     start();
 }
 
@@ -212,16 +215,21 @@ void Button::startTimer(ePressType timeout)
 
 void IRAM_ATTR Button::buttonISR(void *arg)
 {
-    ets_printf("button isr");
     Button *button = reinterpret_cast<Button *>(arg);
     if (!button->m_sampler.IsValidNow())
         return;
 
     button->m_buttonState = !button->m_buttonState;
     if (button->m_buttonState)
+    {
+        button->m_gpi.SetInterruptType(GPIO_INTR_LOW_LEVEL);
         button->receive(PressEvent());
+    }
     else
+    {
+        button->m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
         button->receive(ReleaseEvent());
+    }
 }
 
 void Button::timerCB(xTimerHandle timer)

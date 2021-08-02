@@ -138,3 +138,9 @@ eResult GPI::DisableInterrupt()
 
     return eResult::SUCCESS;
 }
+
+eResult GPI::SetInterruptType(gpio_int_type_t type)
+{
+    esp_err_t res = gpio_set_intr_type(m_pin, type);
+    return res == ESP_OK ? eResult::SUCCESS : eResult::ERROR_INVALID_STATE;
+}

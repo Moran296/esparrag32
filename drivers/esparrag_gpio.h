@@ -56,6 +56,7 @@ public:
     eResult DisableInterrupt();
     eResult EnableInterrupt(isr_func_t isrEventHandler, void *arg);
     gpio_int_type_t GetInterruptType() const { return m_config.intr_type; }
+    eResult SetInterruptType(gpio_int_type_t type);
 
 private:
     static bool m_isr_driver_installed;
