@@ -39,7 +39,7 @@ class TimerEvent_2B : public etl::message<ButtonEvent::TIMER_EVENT>
 {
 };
 
-class TwoButtons : public etl::fsm, public etl::instance_count<Button> //for fsm router num
+class TwoButtons : public etl::fsm, public FSM_COUNT
 {
 public:
     /*

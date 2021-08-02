@@ -6,7 +6,6 @@
 #include "esparrag_time_units.h"
 #include "esparrag_log.h"
 #include "esparrag_gpio.h"
-#include "etl/instance_count.h"
 #include "etl/array.h"
 #include "etl/fsm.h"
 #include "etl/enum_type.h"
@@ -66,7 +65,7 @@ struct ePressType
 };
 
 class Button : public etl::fsm,
-               public etl::instance_count<Button>
+               public FSM_COUNT
 {
 public:
     friend class TwoButtons;

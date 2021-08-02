@@ -3,6 +3,7 @@
 #include "stdint.h"
 #include "freertos/FreeRTOS.h"
 #include "etl/enum_type.h"
+#include "etl/instance_count.h"
 #include "esp_log.h"
 
 #define ESPARRAG_ASSERT(X)                                                                    \
@@ -34,6 +35,11 @@ enum class eResult : uint8_t
 
     NUM
 
+};
+
+//Every etl fsm must inherit this
+class FSM_COUNT : public etl::instance_count<FSM_COUNT>
+{
 };
 
 #endif
