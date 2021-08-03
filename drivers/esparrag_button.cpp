@@ -97,18 +97,7 @@ eResult Button::registerEvent(const buttonCB &cb, callback_list_t &cb_list)
     auto cb_sorted_inserter = [&cb_list, &cb](int i)
     {
         cb_list[i] = cb;
-        ESPARRAG_LOG_INFO("i = %d", i);
-        for (size_t j = 0; j <= i; j++)
-        {
-            ESPARRAG_LOG_INFO("j %d. time %d", i, cb_list[j].cb_time.value());
-        }
         etl::sort(cb_list.begin(), cb_list.begin() + i + 1);
-        ESPARRAG_LOG_INFO("event written as %s", ePressType(i).c_str());
-        for (size_t j = 0; j <= i; j++)
-        {
-            ESPARRAG_LOG_INFO("j %d. time %d", j, cb_list[j].cb_time.value());
-        }
-
         return eResult::SUCCESS;
     };
 
