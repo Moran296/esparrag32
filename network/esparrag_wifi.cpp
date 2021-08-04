@@ -70,6 +70,10 @@ eResult Wifi::provision()
     const char *sta_ssid = nullptr;
     const char *sta_password = nullptr;
     Settings::Config.Get<CONFIG_ID::STA_SSID, CONFIG_ID::STA_PASSWORD>(sta_ssid, sta_password);
+    if (strlen(sta_ssid))
+        ESPARRAG_LOG_WARNING("ssid %s", sta_ssid);
+    if (strlen(sta_password))
+        ESPARRAG_LOG_WARNING("pass %s", sta_password);
     if (ValidityCheck(sta_ssid, sta_password) == true)
     {
         if (mode == WIFI_AP)

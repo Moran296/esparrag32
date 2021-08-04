@@ -2,6 +2,7 @@
 #define APP_DATA_H__
 
 #include "etl/enum_type.h"
+#include "etl/string.h"
 #include "esparrag_common.h"
 #include "esparrag_data.h"
 #include "esparrag_database.h"
@@ -63,7 +64,8 @@ public:
 
     inline static Database Status{"status_db",
                                   Data<STATUS_ID::WIFI_STATE, uint8_t>{WIFI_OFFLINE, WIFI_NUM - 1, WIFI_OFFLINE, false},
-                                  Data<STATUS_ID::STA_IP, const char *>{"", false}};
+                                  Data<STATUS_ID::STA_IP, const char *>{"", false},
+                                  Data<2, etl::string<40>>{"adas"}};
 };
 
 #endif

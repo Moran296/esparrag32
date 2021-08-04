@@ -105,16 +105,11 @@ template <class... DATA_TYPES>
 template <class DATA>
 void Database<DATA_TYPES...>::writeData(DATA &data)
 {
-    if (!data.m_isPersistent)
-        return;
-
     if (!m_dirtyList[data.m_id])
         return;
 
     const char *key = getKey(data.m_id);
-    eResult res = m_nvs.SetBlob(key, &data, data.size());
-    if (res != eResult::SUCCESS)
-        ESPARRAG_LOG_ERROR("write flash failed. data %d", data.m_id);
+    data.Write(m_nvs, key);
 }
 
 template <class... DATA_TYPES>
@@ -134,12 +129,7 @@ void Database<DATA_TYPES...>::readData(DATA &data)
         return;
 
     const char *key = getKey(data.m_id);
-    size_t actualLen = 0;
-    eResult res = m_nvs.GetBlob(key, &data, data.capacity(), actualLen);
-    if (res != eResult::SUCCESS && res != eResult::ERROR_FLASH_NOT_FOUND)
-        ESPARRAG_LOG_ERROR("problem reading flash");
-    else if (actualLen > 0)
-        ESPARRAG_LOG_INFO("data %d read from flash - %d bytes", data.m_id, actualLen);
+    data.Read(m_nvs, key);
 
     if (!data.isValid(data.m_val))
     {
