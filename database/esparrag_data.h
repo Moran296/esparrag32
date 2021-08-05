@@ -37,7 +37,6 @@ struct Data
     T m_val;
     bool m_isPersistent;
 
-    //if data is a class, it must overload all operators <, ==, data(T*), capacity and size
     void operator=(T newVal) { m_val = newVal; }
     bool operator==(T newVal) { return newVal == m_val; }
     bool operator!=(T newVal) { return !(newVal == m_val); }
@@ -46,20 +45,7 @@ struct Data
         if (!m_isPersistent)
             return;
 
-        void *data = nullptr;
-        size_t len = 0;
-        if constexpr (std::is_class_v<T>)
-        {
-            data = m_val.data();
-            len = m_val.size();
-        }
-        else
-        {
-            data = &m_val;
-            len = sizeof(T);
-        }
-
-        eResult res = nvs.SetBlob(key, data, len);
+        eResult res = nvs.SetBlob(key, &m_val, size(T));
         if (res != eResult::SUCCESS)
             ESPARRAG_LOG_ERROR("write flash failed. data %d", m_id);
     }
@@ -69,21 +55,8 @@ struct Data
         if (!m_isPersistent)
             return;
 
-        void *data = nullptr;
-        size_t max = 0;
-        if constexpr (std::is_class_v<T>)
-        {
-            data = m_val.data();
-            max = m_val.capacity();
-        }
-        else
-        {
-            data = &m_val;
-            max = sizeof(T);
-        }
-
         size_t actualLen = 0;
-        eResult res = nvs.GetBlob(key, data, max, actualLen);
+        eResult res = nvs.GetBlob(key, &m_val, sizeof(T), actualLen);
         if (res != eResult::SUCCESS && res != eResult::ERROR_FLASH_NOT_FOUND)
             ESPARRAG_LOG_ERROR("problem reading flash");
         else if (actualLen > 0)
@@ -159,7 +132,6 @@ struct Data<ID, etl::string<SIZE>>
 
     //if data is a class, it must overload all operators <, ==, data(T*), capacity and size
     void operator=(etl::string<SIZE> newVal) { m_val = newVal; }
-    //void operator=(const char *newVal) { m_val = newVal; }
     bool operator==(etl::string<SIZE> newVal) { return newVal == m_val; }
     bool operator!=(etl::string<SIZE> newVal) { return !(newVal == m_val); }
     void Write(NVS &nvs, const char *key)
@@ -178,12 +150,13 @@ struct Data<ID, etl::string<SIZE>>
             return;
 
         size_t actualLen = 0;
-        eResult res = nvs.GetBlob(key, m_val.begin(), m_val.capacity(), actualLen);
+        char buffer[SIZE]{};
+        eResult res = nvs.GetBlob(key, buffer, SIZE, actualLen);
         if (res != eResult::SUCCESS && res != eResult::ERROR_FLASH_NOT_FOUND)
             ESPARRAG_LOG_ERROR("problem reading flash");
         else if (actualLen > 0)
         {
-            m_val.repair();
+            m_val = buffer;
             ESPARRAG_LOG_INFO("data %d read from flash - %d bytes", m_id, actualLen);
         }
     }
