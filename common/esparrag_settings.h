@@ -32,6 +32,7 @@ struct STATUS_ID
     enum enum_type
     {
         WIFI_STATE,
+        MQTT_STATE,
         STA_IP,
 
         NUM
@@ -53,6 +54,16 @@ enum eWifiState
     WIFI_NUM
 };
 
+enum eMqttState
+{
+    MQTT_OFFLINE,
+    MQTT_CONNECTING,
+    MQTT_CONNECTED,
+    MQTT_SUBSCRIBED,
+
+    MQTT_NUM
+};
+
 class Settings
 {
 public:
@@ -64,8 +75,8 @@ public:
 
     inline static Database Status{"status_db",
                                   Data<STATUS_ID::WIFI_STATE, uint8_t>{WIFI_OFFLINE, WIFI_NUM - 1, WIFI_OFFLINE, false},
-                                  Data<STATUS_ID::STA_IP, const char *>{"", false},
-                                  Data<2, etl::string<40>>{"adas"}};
+                                  Data<STATUS_ID::MQTT_STATE, uint8_t>{MQTT_OFFLINE, MQTT_NUM - 1, MQTT_OFFLINE, false},
+                                  Data<STATUS_ID::STA_IP, const char *>{"", false}};
 };
 
 #endif
