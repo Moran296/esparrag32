@@ -24,6 +24,8 @@ public:
 
     EsparragManager();
     void Run();
+    static void CommitConfig();
+    static void CommitStatus();
 
 private:
     static void entryFunction(void *arg);

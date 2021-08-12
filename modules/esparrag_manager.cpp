@@ -48,6 +48,7 @@ void EsparragManager::handleEvents()
 
         if (bits & eEsparragEvents::STATUS_COMMIT)
         {
+            vTaskDelay(MilliSeconds(500).toTicks());
             ESPARRAG_LOG_INFO("event status commit");
             Settings::Status.Commit();
         }
@@ -58,6 +59,15 @@ void EsparragManager::setEvent(eEsparragEvents event)
 {
     ESPARRAG_LOG_INFO("this %p", this);
     xEventGroupSetBits(m_eventGroup, event);
+}
+
+void EsparragManager::CommitConfig()
+{
+    s_this->setEvent(eEsparragEvents::CONFIG_COMMIT);
+}
+void EsparragManager::CommitStatus()
+{
+    s_this->setEvent(eEsparragEvents::STATUS_COMMIT);
 }
 
 void EsparragManager::handleCredentials()
