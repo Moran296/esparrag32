@@ -31,6 +31,8 @@ private:
     static void entryFunction(void *arg);
     void setEvent(eEsparragEvents event);
     void initComponents();
+    void initName();
+
     void handleEvents();
     void handleCredentials();
 

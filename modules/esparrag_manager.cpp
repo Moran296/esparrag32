@@ -22,10 +22,10 @@ void EsparragManager::Run()
 
 void EsparragManager::initComponents()
 {
+    initName();
     ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
     ESPARRAG_ASSERT(m_server.Init() == eResult::SUCCESS);
     m_eventGroup = xEventGroupCreate();
-    ESPARRAG_LOG_INFO("this %p", this);
     handleCredentials();
     ESPARRAG_ASSERT(m_eventGroup);
 }
@@ -70,6 +70,23 @@ void EsparragManager::CommitStatus()
     s_this->setEvent(eEsparragEvents::STATUS_COMMIT);
 }
 
+void EsparragManager::initName()
+{
+    const char *name = nullptr;
+    Settings::Status.Get<eStatus::MY_NAME>(name);
+    if (strlen(name) != 0)
+        return;
+
+    uint8_t mac[6]{};
+    esp_err_t err = esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    ESPARRAG_ASSERT(err == ESP_OK);
+    char new_name[30]{};
+    snprintf(new_name, 30, "%s-%x%x%x%x%x%x", "esparrag",
+             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    Settings::Status.Set<eStatus::MY_NAME>(new_name);
+    Settings::Status.Commit();
+}
+
 void EsparragManager::handleCredentials()
 {
     m_server.On("/credentials", METHOD::POST,
@@ -99,8 +116,8 @@ void EsparragManager::handleCredentials()
                         return eResult::SUCCESS;
                     }
 
-                    Settings::Config.Set<CONFIG_ID::STA_SSID>(ssid);
-                    Settings::Config.Set<CONFIG_ID::STA_PASSWORD>(pass);
+                    Settings::Config.Set<eConfig::STA_SSID>(ssid);
+                    Settings::Config.Set<eConfig::STA_PASSWORD>(pass);
                     res.m_code = Response::CODE(200);
                     res.m_format = Response::FORMAT::JSON;
                     cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");

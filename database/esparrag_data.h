@@ -45,7 +45,7 @@ struct Data
         if (!m_isPersistent)
             return;
 
-        eResult res = nvs.SetBlob(key, &m_val, size(T));
+        eResult res = nvs.SetBlob(key, &m_val, sizeof(T));
         if (res != eResult::SUCCESS)
             ESPARRAG_LOG_ERROR("write flash failed. data %d", m_id);
     }

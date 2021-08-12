@@ -31,9 +31,9 @@ eResult Wifi::Init()
     }
 
     auto changeCB = DB_PARAM_CALLBACK(Settings::Config)::create<Wifi, &Wifi::dbConfigChange>(*this);
-    Settings::Config.Subscribe<CONFIG_ID::STA_SSID,
-                               CONFIG_ID::AP_SSID,
-                               CONFIG_ID::AP_PASSWORD>(changeCB);
+    Settings::Config.Subscribe<eConfig::STA_SSID,
+                               eConfig::AP_SSID,
+                               eConfig::AP_PASSWORD>(changeCB);
 
     ap_netif = esp_netif_create_default_wifi_ap();
     ESPARRAG_ASSERT(ap_netif != nullptr);
@@ -56,7 +56,7 @@ eResult Wifi::provision()
     ESPARRAG_LOG_INFO("provisioning...");
 
     uint8_t mode = 0;
-    Settings::Status.Get<STATUS_ID::WIFI_STATE>(mode);
+    Settings::Status.Get<eStatus::WIFI_STATE>(mode);
 
     if (mode == WIFI_STA && internet_connected)
         return eResult::SUCCESS;
@@ -69,7 +69,7 @@ eResult Wifi::provision()
     //check for sta credentials in database
     const char *sta_ssid = nullptr;
     const char *sta_password = nullptr;
-    Settings::Config.Get<CONFIG_ID::STA_SSID, CONFIG_ID::STA_PASSWORD>(sta_ssid, sta_password);
+    Settings::Config.Get<eConfig::STA_SSID, eConfig::STA_PASSWORD>(sta_ssid, sta_password);
     if (strlen(sta_ssid))
         ESPARRAG_LOG_WARNING("ssid %s", sta_ssid);
     if (strlen(sta_password))
@@ -163,7 +163,7 @@ void Wifi::disconnect()
     esp_wifi_stop();
     //should we switch to offline?
     eWifiState state = WIFI_OFFLINE;
-    Settings::Status.Set<STATUS_ID::WIFI_STATE>((uint8_t)state);
+    Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
     Settings::Status.Commit();
 }
 
@@ -171,7 +171,7 @@ eResult Wifi::ap_start()
 {
     const char *ssid = nullptr;
     const char *password = nullptr;
-    Settings::Config.Get<CONFIG_ID::AP_SSID, CONFIG_ID::AP_PASSWORD>(ssid, password);
+    Settings::Config.Get<eConfig::AP_SSID, eConfig::AP_PASSWORD>(ssid, password);
     ESPARRAG_LOG_INFO("ap ssid %s password %s", ssid, password);
     ESPARRAG_ASSERT(ValidityCheck(ssid, password) == true);
 
@@ -238,7 +238,7 @@ void Wifi::eventHandler(void *event_handler_arg,
             wifi->internet_connected = true;
 
             eWifiState state = WIFI_STA;
-            Settings::Status.Set<STATUS_ID::WIFI_STATE>((uint8_t)state);
+            Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
             Settings::Status.Commit();
 
             retries = 0;
@@ -266,7 +266,7 @@ void Wifi::eventHandler(void *event_handler_arg,
         {
             ESPARRAG_LOG_INFO("AP STARTED");
             eWifiState state = WIFI_AP;
-            Settings::Status.Set<STATUS_ID::WIFI_STATE>((uint8_t)state);
+            Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
             Settings::Status.Commit();
         }
 
@@ -289,7 +289,7 @@ void Wifi::eventHandler(void *event_handler_arg,
         ip_event_got_ip_t *ipevent = (ip_event_got_ip_t *)event_data;
         char newip[20]{};
         sprintf(newip, IPSTR, IP2STR(&ipevent->ip_info.ip));
-        Settings::Status.Set<STATUS_ID::STA_IP>(newip);
+        Settings::Status.Set<eStatus::STA_IP>(newip);
         Settings::Status.Commit();
     }
 }
