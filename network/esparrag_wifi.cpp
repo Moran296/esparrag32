@@ -32,7 +32,7 @@ eResult Wifi::Init()
 
     auto changeCB = DB_PARAM_CALLBACK(Settings::Config)::create<Wifi, &Wifi::dbConfigChange>(*this);
     Settings::Config.Subscribe<eConfig::STA_SSID,
-                               eConfig::AP_SSID,
+                               eConfig::DEV_NAME,
                                eConfig::AP_PASSWORD>(changeCB);
 
     ap_netif = esp_netif_create_default_wifi_ap();
@@ -103,7 +103,7 @@ bool Wifi::ValidityCheck(const char *ssid, const char *password) const
     uint8_t ssidlen = strlen(ssid);
     uint8_t passlen = strlen(password);
 
-    if (ssidlen == 0 || ssidlen > 19)
+    if (ssidlen == 0 || ssidlen > 32)
         return false;
     if (passlen > 0 && passlen < 8)
         return false;
@@ -171,7 +171,7 @@ eResult Wifi::ap_start()
 {
     const char *ssid = nullptr;
     const char *password = nullptr;
-    Settings::Config.Get<eConfig::AP_SSID, eConfig::AP_PASSWORD>(ssid, password);
+    Settings::Config.Get<eConfig::DEV_NAME, eConfig::AP_PASSWORD>(ssid, password);
     ESPARRAG_LOG_INFO("ap ssid %s password %s", ssid, password);
     ESPARRAG_ASSERT(ValidityCheck(ssid, password) == true);
 
@@ -237,10 +237,6 @@ void Wifi::eventHandler(void *event_handler_arg,
             ESPARRAG_LOG_INFO("STA CONNECTED");
             wifi->internet_connected = true;
 
-            eWifiState state = WIFI_STA;
-            Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
-            Settings::Status.Commit();
-
             retries = 0;
         }
         else if (event_id == WIFI_EVENT_STA_DISCONNECTED)
@@ -289,6 +285,8 @@ void Wifi::eventHandler(void *event_handler_arg,
         ip_event_got_ip_t *ipevent = (ip_event_got_ip_t *)event_data;
         char newip[20]{};
         sprintf(newip, IPSTR, IP2STR(&ipevent->ip_info.ip));
+        eWifiState state = WIFI_STA;
+        Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
         Settings::Status.Set<eStatus::STA_IP>(newip);
         Settings::Status.Commit();
     }

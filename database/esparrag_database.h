@@ -24,7 +24,7 @@ template <class... DATA_TYPES>
 class Database
 {
     static_assert((isValidData<DATA_TYPES> && ...),
-    "data types for database must be of class Data");
+                  "data types for database must be of class Data");
 
 public:
     static constexpr int DB_MAX_SUBSCRIBERS = 10;                  // max num of subscribers

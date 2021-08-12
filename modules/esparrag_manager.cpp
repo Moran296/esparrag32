@@ -1,4 +1,5 @@
 #include "esparrag_manager.h"
+#include "esparrag_mdns.h"
 
 static EsparragManager *s_this = nullptr;
 
@@ -23,6 +24,7 @@ void EsparragManager::Run()
 void EsparragManager::initComponents()
 {
     initName();
+    Mdns::Init();
     ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
     ESPARRAG_ASSERT(m_server.Init() == eResult::SUCCESS);
     m_eventGroup = xEventGroupCreate();
@@ -73,9 +75,12 @@ void EsparragManager::CommitStatus()
 void EsparragManager::initName()
 {
     const char *name = nullptr;
-    Settings::Status.Get<eStatus::MY_NAME>(name);
+    Settings::Config.Get<eConfig::DEV_NAME>(name);
     if (strlen(name) != 0)
+    {
+        ESPARRAG_LOG_INFO("already named %s", name);
         return;
+    }
 
     uint8_t mac[6]{};
     esp_err_t err = esp_read_mac(mac, ESP_MAC_WIFI_STA);
@@ -83,8 +88,9 @@ void EsparragManager::initName()
     char new_name[30]{};
     snprintf(new_name, 30, "%s-%x%x%x%x%x%x", "esparrag",
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-    Settings::Status.Set<eStatus::MY_NAME>(new_name);
-    Settings::Status.Commit();
+    Settings::Config.Set<eConfig::DEV_NAME>(new_name);
+    ESPARRAG_LOG_INFO("set name: %s", new_name);
+    Settings::Config.Commit();
 }
 
 void EsparragManager::handleCredentials()
