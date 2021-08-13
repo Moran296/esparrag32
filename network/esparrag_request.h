@@ -6,7 +6,7 @@
 #include "mqtt_client.h"
 #include "esparrag_common.h"
 
-struct METHOD
+struct eMethod
 {
     enum enum_type
     {
@@ -17,7 +17,7 @@ struct METHOD
         GENERAL
     };
 
-    ETL_DECLARE_ENUM_TYPE(METHOD, uint8_t)
+    ETL_DECLARE_ENUM_TYPE(eMethod, uint8_t)
     ETL_ENUM_DEFAULT(GET)
     ETL_ENUM_DEFAULT(POST)
     ETL_ENUM_DEFAULT(DELETE)
@@ -28,11 +28,17 @@ struct METHOD
 
 struct Request
 {
-    Request(cJSON *content, const char *uri, METHOD method) : m_content(content),
-                                                              m_uri(uri),
-                                                              m_method(method)
+    Request(cJSON *content, const char *uri, eMethod method) : m_content(content),
+                                                               m_uri(uri),
+                                                               m_method(method)
     {
     }
+    Request(cJSON *content, const char *uri) : m_content(content),
+                                               m_uri(uri),
+                                               m_method(eMethod::GENERAL)
+    {
+    }
+
     ~Request()
     {
         if (m_content)
@@ -41,7 +47,7 @@ struct Request
 
     cJSON *m_content;
     const char *m_uri;
-    METHOD m_method;
+    eMethod m_method;
 };
 
 #endif

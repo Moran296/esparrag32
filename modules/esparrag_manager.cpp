@@ -3,7 +3,7 @@
 
 static EsparragManager *s_this = nullptr;
 
-EsparragManager::EsparragManager()
+EsparragManager::EsparragManager() : m_interface(m_mqtt, m_server)
 {
     ESPARRAG_ASSERT(s_this == nullptr);
     s_this = this;
@@ -31,7 +31,7 @@ void EsparragManager::initComponents()
     Mdns::Init();
     ESPARRAG_ASSERT(m_server.Init() == eResult::SUCCESS);
     ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
-    handleCredentials();
+    m_interface.RegisterHandlers();
 }
 
 void EsparragManager::handleEvents()
@@ -87,48 +87,9 @@ void EsparragManager::initName()
     esp_err_t err = esp_read_mac(mac, ESP_MAC_WIFI_STA);
     ESPARRAG_ASSERT(err == ESP_OK);
     char new_name[30]{};
-    snprintf(new_name, 30, "%s-%x%x%x%x%x%x", "esparrag",
+    snprintf(new_name, 30, "%s-%x%x%x%x%x%x", DEVICE_MODEL,
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     Settings::Config.Set<eConfig::DEV_NAME>(new_name);
     ESPARRAG_LOG_INFO("set name: %s", new_name);
     Settings::Config.Commit();
-}
-
-void EsparragManager::handleCredentials()
-{
-    m_server.On("/credentials", METHOD::POST,
-                [](Request &req, Response &res)
-                {
-                    if (!req.m_content)
-                    {
-                        res.m_code = Response::CODE(404);
-                        res.m_format = Response::FORMAT::JSON;
-                        cJSON_AddStringToObject(res.m_json, "message", "invalid request");
-                        return eResult::SUCCESS;
-                    }
-
-                    char *cont = cJSON_Print(req.m_content);
-                    ESPARRAG_LOG_INFO("%s", cont);
-                    cJSON_free(cont);
-
-                    cJSON *ssidJ = cJSON_GetObjectItem(req.m_content, "ssid");
-                    cJSON *passJ = cJSON_GetObjectItem(req.m_content, "password");
-                    const char *ssid = cJSON_GetStringValue(ssidJ);
-                    const char *pass = cJSON_GetStringValue(passJ);
-                    if (ssid == nullptr || pass == nullptr)
-                    {
-                        res.m_code = Response::CODE(404);
-                        res.m_format = Response::FORMAT::JSON;
-                        cJSON_AddStringToObject(res.m_json, "message", "missing parameters");
-                        return eResult::SUCCESS;
-                    }
-
-                    Settings::Config.Set<eConfig::STA_SSID>(ssid);
-                    Settings::Config.Set<eConfig::STA_PASSWORD>(pass);
-                    res.m_code = Response::CODE(200);
-                    res.m_format = Response::FORMAT::JSON;
-                    cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");
-                    s_this->setEvent(eEsparragEvents::CONFIG_COMMIT);
-                    return eResult::SUCCESS;
-                });
 }

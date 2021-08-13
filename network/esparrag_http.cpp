@@ -45,7 +45,6 @@ cJSON *HttpServer::parseHtmlBody(const char *body)
 esp_err_t HttpServer::requestHandler(httpd_req_t *esp_request)
 {
     HttpServer *server = reinterpret_cast<HttpServer *>(esp_request->user_ctx);
-    eResult res = eResult::SUCCESS;
     static char content[HTTP_REQUEST_CONTENT_MAX_SIZE];
     memset(content, 0, sizeof(content));
 
@@ -78,16 +77,9 @@ esp_err_t HttpServer::requestHandler(httpd_req_t *esp_request)
     if (json_body == nullptr)
         json_body = server->parseHtmlBody(content);
 
-    Request request(json_body, esp_request->uri, METHOD(esp_request->method));
+    Request request(json_body, esp_request->uri, eMethod(esp_request->method));
     Response response;
-    res = handler->cb(request, response);
-    if (res != eResult::SUCCESS)
-    {
-        //result should be error only if there was a problem handling the request (invalid request struct)
-        ESPARRAG_LOG_ERROR("handle request failed!");
-        httpd_resp_send_404(esp_request);
-        return ESP_OK;
-    }
+    handler->cb(request, response);
 
     //send the response aquired from the handler
     server->sendResponse(esp_request, response);
@@ -100,7 +92,7 @@ http_event_handler_t *HttpServer::findHandler(httpd_req_t *esp_request)
     {
         bool uriMatch = m_handlers[i].uri == esp_request->uri;
         bool methodMatch = m_handlers[i].method == esp_request->method ||
-                           m_handlers[i].method == METHOD::GENERAL;
+                           m_handlers[i].method == eMethod::GENERAL;
 
         if (uriMatch && methodMatch)
         {
@@ -153,7 +145,7 @@ eResult HttpServer::Init()
 }
 
 eResult HttpServer::On(const char *uri,
-                       METHOD method,
+                       eMethod method,
                        http_handler_callback callback)
 {
     if (!uri || !callback)
@@ -179,7 +171,7 @@ eResult HttpServer::On(const char *uri,
     {
         bool uriMatch = httpd_uri_match_wildcard(m_handlers[i].uri.data(), uri, strlen(uri));
         bool methodMatch = m_handlers[i].method == method ||
-                           m_handlers[i].method == METHOD::GENERAL;
+                           m_handlers[i].method == eMethod::GENERAL;
         if (uriMatch && methodMatch)
         {
             ESPARRAG_LOG_ERROR("Handler for this request already exists! uri %s", uri);

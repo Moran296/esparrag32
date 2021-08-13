@@ -1,6 +1,8 @@
 #include "esparrag_mqtt.h"
 #include "esparrag_log.h"
 
+char MqttClient::m_payload[PAYLOAD_BUFFER_SIZE]{};
+
 void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
     MqttClient *client = reinterpret_cast<MqttClient *>(arg);
@@ -15,9 +17,12 @@ void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_
     case MQTT_EVENT_CONNECTED:
         ESPARRAG_LOG_INFO("MQTT_EVENT_CONNECTED");
         client->updateCloudState(eMqttState::MQTT_CONNECTED);
+        client->m_connected = true;
+        client->reSubscribe();
         break;
     case MQTT_EVENT_DISCONNECTED:
         ESPARRAG_LOG_INFO("MQTT_EVENT_DISCONNECTED");
+        client->m_connected = false;
         client->updateCloudState(eMqttState::MQTT_OFFLINE);
         break;
     case MQTT_EVENT_SUBSCRIBED:
@@ -46,6 +51,116 @@ void MqttClient::Init()
 {
     auto changeCB = DB_PARAM_CALLBACK(Settings::Status)::create<MqttClient, &MqttClient::init>(*this);
     Settings::Status.Subscribe<eStatus::BROKER_IP>(changeCB);
+}
+
+void MqttClient::On(const char *topic, mqtt_handler_callback callback)
+{
+    ESPARRAG_ASSERT(m_handlers.size() != m_handlers.capacity());
+    ESPARRAG_ASSERT(callback.is_valid());
+    mqtt_event_handler_t handler{.cb = callback, .topic = constructFullTopic(topic), .isSubscribed = false};
+
+    if (m_connected)
+    {
+        if (subscribe(constructFullTopic(topic)))
+        {
+            handler.isSubscribed = true;
+        }
+    }
+
+    m_handlers.push_back(handler);
+}
+
+void MqttClient::handleData(esp_mqtt_event_t *event)
+{
+    static char topic[TOPIC_BUFFER_SIZE];
+    memset(topic, 0, sizeof(topic));
+    memset(m_payload, 0, sizeof(m_payload));
+    strlcpy(topic, event->topic, event->topic_len + 1);
+    strlcpy(m_payload, event->data, event->data_len + 1);
+    mqtt_event_handler_t *handler = findHandler(topic);
+    if (!handler)
+    {
+        ESPARRAG_LOG_ERROR("no handler for topic %s", topic);
+        return;
+    }
+
+    // --handle request
+    cJSON *jsonPayload = cJSON_Parse(m_payload);
+    Request request(jsonPayload, topic);
+    Response response;
+    handler->cb(request, response);
+
+    // --prepare response
+    ESPARRAG_ASSERT(response.m_format == Response::FORMAT::JSON)
+
+    cJSON *uuid = nullptr;
+    if (request.m_content)
+    {
+        uuid = cJSON_GetObjectItem(request.m_content, "uuid");
+    }
+
+    if (uuid && cJSON_IsString(uuid))
+    {
+        cJSON_AddItemReferenceToObject(response.m_json, "uuid", uuid);
+    }
+
+    strlcat(topic, "/response", TOPIC_BUFFER_SIZE);
+    memset(m_payload, 0, sizeof(m_payload));
+    bool printed = cJSON_PrintPreallocated(response.m_json, m_payload, PAYLOAD_BUFFER_SIZE, false);
+    if (!printed)
+    {
+        ESPARRAG_LOG_ERROR("mqtt publish buffer too small");
+        return;
+    }
+
+    publish(topic, m_payload);
+}
+
+eResult MqttClient::Publish(const char *topic, cJSON *msg)
+{
+    memset(m_payload, 0, sizeof(m_payload));
+    bool printed = cJSON_PrintPreallocated(msg, m_payload, PAYLOAD_BUFFER_SIZE, false);
+    if (!printed)
+    {
+        ESPARRAG_LOG_ERROR("mqtt publish buffer too small");
+        return eResult::ERROR_INVALID_STATE;
+    }
+
+    return publish(constructFullTopic(topic), m_payload);
+}
+
+eResult MqttClient::Publish(const char *topic, const char *msg)
+{
+    return publish(constructFullTopic(topic), msg);
+}
+
+eResult MqttClient::publish(const char *topic, const char *payload)
+{
+    if (!m_connected)
+        return eResult::ERROR_INVALID_STATE;
+
+    int err = esp_mqtt_client_publish(m_client, topic, payload, strlen(payload), 0, false);
+    if (err == -1)
+    {
+        ESPARRAG_LOG_ERROR("mqtt publish failed");
+        return eResult::ERROR_GENERAL;
+    }
+
+    return eResult::SUCCESS;
+}
+
+MqttClient::mqtt_event_handler_t *MqttClient::findHandler(const char *topic)
+{
+    ESPARRAG_LOG_INFO("recieved topic: %s", topic);
+    for (size_t i = 0; i < m_handlers.size(); i++)
+    {
+        if (m_handlers[i].topic == topic)
+        {
+            return &m_handlers[i];
+        }
+    }
+
+    return nullptr;
 }
 
 void MqttClient::init(DB_PARAM_DIRTY_LIST(Settings::Status) list)
@@ -107,15 +222,44 @@ void MqttClient::init(DB_PARAM_DIRTY_LIST(Settings::Status) list)
 
 void MqttClient::updateCloudState(eMqttState state)
 {
-    Settings::Status.Set<eStatus::MQTT_STATE, uint8_t>(state);
-    Settings::Status.Commit();
-}
-
-void MqttClient::handleData(esp_mqtt_event_t *event)
-{
+    if (Settings::Status.Set<eStatus::MQTT_STATE, uint8_t>(state))
+        Settings::Status.Commit();
 }
 
 const char *MqttClient::constructFullTopic(const char *topic)
 {
-    return nullptr;
+    static char buffer[TOPIC_BUFFER_SIZE];
+
+    ESPARRAG_ASSERT(topic && strlen(topic) > 0);
+    ESPARRAG_ASSERT(topic[0] == '/');
+
+    memset(buffer, 0, TOPIC_BUFFER_SIZE);
+    const char *name = nullptr;
+    Settings::Config.Get<eConfig::DEV_NAME>(name);
+    snprintf(buffer, TOPIC_BUFFER_SIZE, "/%s%s", name, topic);
+
+    return buffer;
+}
+
+bool MqttClient::subscribe(const char *topic)
+{
+    ESPARRAG_ASSERT(m_connected);
+    esp_err_t err = esp_mqtt_client_subscribe(m_client, topic, 0);
+    if (err == -1)
+    {
+        ESPARRAG_LOG_ERROR("subscribe failed, err %d", err);
+        return false;
+    }
+
+    return true;
+}
+
+void MqttClient::reSubscribe()
+{
+    ESPARRAG_ASSERT(m_connected);
+    for (size_t i = 0; i < m_handlers.size(); i++)
+    {
+        m_handlers[i].isSubscribed =
+            subscribe(m_handlers[i].topic.data());
+    }
 }

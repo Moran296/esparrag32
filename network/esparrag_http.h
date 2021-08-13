@@ -12,7 +12,7 @@
 #include "etl/vector.h"
 #include "cJSON.h"
 
-using http_handler_callback = etl::delegate<eResult(Request &, Response &)>;
+using http_handler_callback = etl::delegate<void(Request &, Response &)>;
 using promise_callback = etl::delegate<void(void *)>;
 
 struct http_event_handler_t
@@ -20,7 +20,7 @@ struct http_event_handler_t
     static constexpr int URI_MAX_LEN = 15;
     http_handler_callback cb;
     etl::string<URI_MAX_LEN> uri;
-    METHOD method;
+    eMethod method;
 };
 
 class HttpServer
@@ -30,7 +30,7 @@ public:
 
     eResult Init();
     eResult On(const char *uri,
-               METHOD method,
+               eMethod method,
                http_handler_callback callback);
 
 private:
