@@ -23,14 +23,15 @@ void EsparragManager::Run()
 
 void EsparragManager::initComponents()
 {
+    m_eventGroup = xEventGroupCreate();
+    ESPARRAG_ASSERT(m_eventGroup);
+
     initName();
     m_mqtt.Init();
     Mdns::Init();
-    ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
     ESPARRAG_ASSERT(m_server.Init() == eResult::SUCCESS);
-    m_eventGroup = xEventGroupCreate();
+    ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
     handleCredentials();
-    ESPARRAG_ASSERT(m_eventGroup);
 }
 
 void EsparragManager::handleEvents()
@@ -60,7 +61,6 @@ void EsparragManager::handleEvents()
 
 void EsparragManager::setEvent(eEsparragEvents event)
 {
-    ESPARRAG_LOG_INFO("this %p", this);
     xEventGroupSetBits(m_eventGroup, event);
 }
 

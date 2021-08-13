@@ -44,47 +44,42 @@ void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_
 }
 void MqttClient::Init()
 {
-    Settings::Status.Subscribe<eStatus::BROKER_IP>([this](auto dirty)
-                                                   { init(); });
+    auto changeCB = DB_PARAM_CALLBACK(Settings::Status)::create<MqttClient, &MqttClient::init>(*this);
+    Settings::Status.Subscribe<eStatus::BROKER_IP>(changeCB);
 }
 
-void MqttClient::init()
+void MqttClient::init(DB_PARAM_DIRTY_LIST(Settings::Status) list)
 {
     constexpr int MQTT_PORT = 1883;
     esp_mqtt_client_config_t config{};
     const char *mqttIP = nullptr;
     char mqttHost[50]{};
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
 
-    if (m_client)
+    if (m_client != nullptr)
+    {
         return;
+    }
 
     Settings::Status.Get<eStatus::BROKER_IP>(mqttIP);
     if (!mqttIP)
     {
-        ESPARRAG_LOG_ERROR("%d", __LINE__);
         return;
     }
 
     if (strlen(mqttIP) == 0)
     {
-        ESPARRAG_LOG_ERROR("%d", __LINE__);
         return;
     }
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
 
     snprintf(mqttHost, sizeof(mqttHost), "mqtt://%s:%d", mqttIP, MQTT_PORT);
     const char *name = nullptr;
     Settings::Config.Get<eConfig::DEV_NAME>(name);
 
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
     config.port = MQTT_PORT;
     config.uri = mqttHost;
     config.host = mqttHost;
     config.client_id = name;
     config.username = name;
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
 
     m_client = esp_mqtt_client_init(&config);
     if (!m_client)
@@ -93,7 +88,6 @@ void MqttClient::init()
         return;
     }
 
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
     esp_err_t err = esp_mqtt_client_register_event(m_client, MQTT_EVENT_ANY, mqttEventHandler, this);
     if (err != ESP_OK)
     {
@@ -101,14 +95,12 @@ void MqttClient::init()
         return;
     }
 
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
     err = esp_mqtt_client_start(m_client);
     if (err != ESP_OK)
     {
         ESPARRAG_LOG_ERROR("could not start mqtt");
         return;
     }
-    ESPARRAG_LOG_ERROR("%d", __LINE__);
 
     ESPARRAG_LOG_INFO("mqtt initiated");
 }

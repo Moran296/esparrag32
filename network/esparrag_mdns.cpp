@@ -32,15 +32,6 @@ void Mdns::init()
         return;
     }
 
-    // We are not posting services yet
-    // const char *name = nullptr;
-    // Settings::Config.Get<eConfig::DEV_NAME>(name);
-    // err = mdns_hostname_set(name);
-    // if (err != ESP_OK)
-    // {
-    //     ESPARRAG_LOG_ERROR("mdns set name.  err %d", err);
-    // }
-
     FindBroker();
 }
 

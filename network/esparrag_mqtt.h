@@ -33,7 +33,7 @@ private:
     const char *constructFullTopic(const char *topic);
     void handleData(esp_mqtt_event_t *event);
     void updateCloudState(eMqttState state);
-    void init();
+    void init(DB_PARAM_DIRTY_LIST(Settings::Status) list);
 
     static void mqttEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 };

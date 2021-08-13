@@ -1,6 +1,7 @@
 #include "esparrag_wifi.h"
 #include "string.h"
 #include "esp_wifi.h"
+#include "esparrag_manager.h"
 
 eResult Wifi::Init()
 {
@@ -288,6 +289,6 @@ void Wifi::eventHandler(void *event_handler_arg,
         eWifiState state = WIFI_STA;
         Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
         Settings::Status.Set<eStatus::STA_IP>(newip);
-        Settings::Status.Commit();
+        EsparragManager::CommitStatus();
     }
 }
