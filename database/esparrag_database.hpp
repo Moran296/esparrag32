@@ -42,7 +42,7 @@ bool Database<DATA_TYPES...>::Set(TYPE val)
     auto &data = std::get<ID>(m_data);
     if (data == val)
     {
-        ESPARRAG_LOG_DEBUG("data id %d equal, won't set", ID);
+        ESPARRAG_LOG_WARNING("data id %d equal, won't set", ID);
         return false;
     }
 
@@ -60,7 +60,7 @@ bool Database<DATA_TYPES...>::Set(TYPE val)
 
 template <class... DATA_TYPES>
 template <size_t... ID, class... TYPE>
-void Database<DATA_TYPES...>::Set(TYPE... val)
+void Database<DATA_TYPES...>::SetAndCommit(TYPE... val)
 {
     (Set<ID>(val), ...);
     Commit();
@@ -70,15 +70,10 @@ template <class... DATA_TYPES>
 template <size_t ID, class TYPE>
 void Database<DATA_TYPES...>::Get(TYPE &val)
 {
-    ESPARRAG_LOG_DEBUG("debug1");
     Lock lock(m_mutex);
-    ESPARRAG_LOG_DEBUG("debug2");
     auto &c = std::get<Data<ID, TYPE>>(m_data); //--> this allow more explicit type enforcing
-    ESPARRAG_LOG_DEBUG("debug3");
     //auto &c = std::get<ID>(m_data);
-    ESPARRAG_LOG_DEBUG("debug4");
     val = c.m_val;
-    ESPARRAG_LOG_DEBUG("debug5");
 }
 
 template <class... DATA_TYPES>
@@ -192,16 +187,17 @@ void Database<DATA_TYPES...>::Subscribe(db_change_event_cb callback)
 template <class... DATA_TYPES>
 void Database<DATA_TYPES...>::publish()
 {
+    dirty_list_t tmp = m_dirtyList;
+    m_dirtyList.reset();
+
     for (auto &[list, cb] : m_subscribers)
     {
-        dirty_list_t intersected_bits = m_dirtyList & list;
+        dirty_list_t intersected_bits = tmp & list;
         if (intersected_bits.any())
         {
             cb(std::move(intersected_bits));
         }
     }
-
-    m_dirtyList.reset();
 }
 
 template <class... DATA_TYPES>

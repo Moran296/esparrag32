@@ -58,10 +58,10 @@ public:
     /*Set values to data members.
         This function changes values to all data members supplied and then commits changes
         example:
-            db.Set<1, 2, 3>(43, 'd', "is for door");
+            db.SetAndCommit<1, 2, 3>(43, 'd', "is for door");
     */
     template <size_t... ID, class... TYPE>
-    void Set(TYPE... val);
+    void SetAndCommit(TYPE... val);
 
     /*Get data value
       example:
