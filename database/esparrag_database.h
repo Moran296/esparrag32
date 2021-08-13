@@ -27,7 +27,7 @@ class Database
                   "data types for database must be of class Data");
 
 public:
-    static constexpr int DB_MAX_SUBSCRIBERS = 10;                  // max num of subscribers
+    static constexpr int DB_MAX_SUBSCRIBERS = 15;                  // max num of subscribers
     static constexpr int MAX_TIME_TO_COMMIT = pdMS_TO_TICKS(5000); // time to commit after change. otherwise assert.
 
     using dirty_list_t = etl::bitset<sizeof...(DATA_TYPES)>;                                                 //bitset of changed data members

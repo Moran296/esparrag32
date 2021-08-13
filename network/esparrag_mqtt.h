@@ -23,15 +23,17 @@ public:
         etl::string<TOPIC_MAX_LEN> topic;
     };
 
-    eResult Init();
-    eResult Publish(const char *topic, cJSON *msg);
-    eResult On(const char *topic, mqtt_handler_callback callback);
+    void Init();
+    // eResult Publish(const char *topic, cJSON *msg) {}
+    // eResult On(const char *topic, mqtt_handler_callback callback) {}
 
 private:
-    const char *constructFullTopic(const char *topic);
+    esp_mqtt_client_handle_t m_client{};
 
+    const char *constructFullTopic(const char *topic);
     void handleData(esp_mqtt_event_t *event);
     void updateCloudState(eMqttState state);
+    void init();
 
     static void mqttEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 };

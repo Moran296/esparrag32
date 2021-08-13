@@ -70,10 +70,15 @@ template <class... DATA_TYPES>
 template <size_t ID, class TYPE>
 void Database<DATA_TYPES...>::Get(TYPE &val)
 {
+    ESPARRAG_LOG_DEBUG("debug1");
     Lock lock(m_mutex);
+    ESPARRAG_LOG_DEBUG("debug2");
     auto &c = std::get<Data<ID, TYPE>>(m_data); //--> this allow more explicit type enforcing
+    ESPARRAG_LOG_DEBUG("debug3");
     //auto &c = std::get<ID>(m_data);
+    ESPARRAG_LOG_DEBUG("debug4");
     val = c.m_val;
+    ESPARRAG_LOG_DEBUG("debug5");
 }
 
 template <class... DATA_TYPES>

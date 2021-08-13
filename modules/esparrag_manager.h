@@ -2,6 +2,7 @@
 #define ESPARRAG_MANAGER
 
 #include "esparrag_wifi.h"
+#include "esparrag_mqtt.h"
 #include "executioner.h"
 #include "esparrag_database.h"
 #include "esparrag_http.h"
@@ -40,6 +41,7 @@ private:
     EventGroupHandle_t m_eventGroup;
     Wifi m_wifi;
     HttpServer m_server;
+    MqttClient m_mqtt;
 
     EsparragManager(EsparragManager const &) = delete;
     EsparragManager &operator=(EsparragManager const &) = delete;

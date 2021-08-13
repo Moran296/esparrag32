@@ -1,8 +1,8 @@
 #include "esparrag_mqtt.h"
+#include "esparrag_log.h"
 
 void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
-    eResult res = eResult::SUCCESS;
     MqttClient *client = reinterpret_cast<MqttClient *>(arg);
     esp_mqtt_event_handle_t event = reinterpret_cast<esp_mqtt_event_handle_t>(event_data);
 
@@ -41,4 +41,89 @@ void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_
         ESPARRAG_ASSERT(false);
         break;
     }
+}
+void MqttClient::Init()
+{
+    Settings::Status.Subscribe<eStatus::BROKER_IP>([this](auto dirty)
+                                                   { init(); });
+}
+
+void MqttClient::init()
+{
+    constexpr int MQTT_PORT = 1883;
+    esp_mqtt_client_config_t config{};
+    const char *mqttIP = nullptr;
+    char mqttHost[50]{};
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+
+    if (m_client)
+        return;
+
+    Settings::Status.Get<eStatus::BROKER_IP>(mqttIP);
+    if (!mqttIP)
+    {
+        ESPARRAG_LOG_ERROR("%d", __LINE__);
+        return;
+    }
+
+    if (strlen(mqttIP) == 0)
+    {
+        ESPARRAG_LOG_ERROR("%d", __LINE__);
+        return;
+    }
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+
+    snprintf(mqttHost, sizeof(mqttHost), "mqtt://%s:%d", mqttIP, MQTT_PORT);
+    const char *name = nullptr;
+    Settings::Config.Get<eConfig::DEV_NAME>(name);
+
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+    config.port = MQTT_PORT;
+    config.uri = mqttHost;
+    config.host = mqttHost;
+    config.client_id = name;
+    config.username = name;
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+
+    m_client = esp_mqtt_client_init(&config);
+    if (!m_client)
+    {
+        ESPARRAG_LOG_ERROR("could not create mqtt client");
+        return;
+    }
+
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+    esp_err_t err = esp_mqtt_client_register_event(m_client, MQTT_EVENT_ANY, mqttEventHandler, this);
+    if (err != ESP_OK)
+    {
+        ESPARRAG_LOG_ERROR("could not register event handler");
+        return;
+    }
+
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+    err = esp_mqtt_client_start(m_client);
+    if (err != ESP_OK)
+    {
+        ESPARRAG_LOG_ERROR("could not start mqtt");
+        return;
+    }
+    ESPARRAG_LOG_ERROR("%d", __LINE__);
+
+    ESPARRAG_LOG_INFO("mqtt initiated");
+}
+
+void MqttClient::updateCloudState(eMqttState state)
+{
+    Settings::Status.Set<eStatus::MQTT_STATE, uint8_t>(state);
+    Settings::Status.Commit();
+}
+
+void MqttClient::handleData(esp_mqtt_event_t *event)
+{
+}
+
+const char *MqttClient::constructFullTopic(const char *topic)
+{
+    return nullptr;
 }

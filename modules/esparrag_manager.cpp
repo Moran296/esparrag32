@@ -24,6 +24,7 @@ void EsparragManager::Run()
 void EsparragManager::initComponents()
 {
     initName();
+    m_mqtt.Init();
     Mdns::Init();
     ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
     ESPARRAG_ASSERT(m_server.Init() == eResult::SUCCESS);

@@ -74,33 +74,6 @@ void goo(void *arg, uint32_t hello)
 
 extern "C" void app_main()
 {
-    GPI gpi1(17, GPIO_INTR_ANYEDGE);
-    Button a(gpi1);
-    Button::buttonCB press_fast = {.cb_function = goo, .cb_arg2 = FAST_PRESS};
-    Button::buttonCB release_fast = {.cb_function = goo, .cb_arg2 = FAST_RELEASE};
-    Button::buttonCB press_short = {.cb_function = goo, .cb_arg2 = SHORT_PRESS, .cb_time = Seconds(3)};
-    Button::buttonCB release_short = {.cb_function = goo, .cb_arg2 = SHORT_RELEASE, .cb_time = Seconds(3)};
-    Button::buttonCB press_long = {.cb_function = goo, .cb_arg2 = LONG_PRESS, .cb_time = Seconds(5)};
-    Button::buttonCB release_long = {.cb_function = goo, .cb_arg2 = LONG_RELEASE, .cb_time = Seconds(5)};
-
-    a.RegisterPress(std::move(press_fast));
-    a.RegisterRelease(std::move(release_fast));
-    a.RegisterPress(std::move(press_short));
-    a.RegisterRelease(std::move(release_short));
-    a.RegisterPress(std::move(press_long));
-    a.RegisterRelease(std::move(release_long));
-
-    GPI gpi2(18, GPIO_INTR_ANYEDGE);
-    Button b(gpi2);
-    Button::buttonCB press_fast2 = {.cb_function = goo, .cb_arg2 = 34};
-    Button::buttonCB release_fast2 = {.cb_function = goo, .cb_arg2 = 35};
-    b.RegisterPress(std::move(press_fast2));
-    b.RegisterRelease(std::move(release_fast2));
-    Button::buttonCB b2press = {.cb_function = goo, .cb_arg2 = 55, .cb_time = Seconds(3)};
-    Button::buttonCB b2release = {.cb_function = goo, .cb_arg2 = 66, .cb_time = Seconds(3)};
-    TwoButtons butt(a, b);
-    butt.RegisterPress(std::move(b2press));
-    butt.RegisterRelease(std::move(b2release));
 
     EsparragManager manager;
     manager.Run();
