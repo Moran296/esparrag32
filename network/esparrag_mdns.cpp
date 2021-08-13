@@ -38,7 +38,7 @@ void Mdns::init()
 void Mdns::FindBroker()
 {
     mdns_result_t *results = nullptr;
-    esp_err_t err = mdns_query_ptr(MQTT_SRV, MQTT_PROTO, 1000, 1, &results);
+    esp_err_t err = mdns_query_ptr(MQTT_SRV, MQTT_PROTO, 1500, 1, &results);
     if (err != ESP_OK)
     {
         ESPARRAG_LOG_ERROR("couldn't find broker. err %d", err);
@@ -53,6 +53,5 @@ void Mdns::FindBroker()
     char address[20]{};
     snprintf(address, 20, IPSTR, IP2STR(&(results->addr->addr.u_addr.ip4)));
     ESPARRAG_LOG_ERROR("broker ip %s", address);
-    Settings::Status.Set<eStatus::BROKER_IP>(address);
-    Settings::Status.Commit();
+    Settings::Status.SetAndCommit<eStatus::BROKER_IP>(address);
 }

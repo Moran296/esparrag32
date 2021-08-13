@@ -11,7 +11,7 @@
 #include "esparrag_data.h" // data struct
 #include "esparrag_nvs.h"  // Save and load from flash. remove and fine solution if generic
 
-#define DB_PARAM_DIRTY_LIST(DATABASE) decltype(DATABASE)::dirty_list_t &&
+#define DB_PARAM_DIRTY_LIST(DATABASE) decltype(DATABASE)::dirty_list_t
 #define DB_PARAM_CALLBACK(DATABASE) decltype(DATABASE)::db_change_event_cb
 
 template <typename T>
@@ -31,7 +31,7 @@ public:
     static constexpr int MAX_TIME_TO_COMMIT = pdMS_TO_TICKS(5000); // time to commit after change. otherwise assert.
 
     using dirty_list_t = etl::bitset<sizeof...(DATA_TYPES)>;                                                 //bitset of changed data members
-    using db_change_event_cb = etl::delegate<void(dirty_list_t &&)>;                                         //callback to be run on publish
+    using db_change_event_cb = etl::delegate<void(dirty_list_t)>;                                            //callback to be run on publish
     using subscribers_list_t = etl::vector<etl::pair<dirty_list_t, db_change_event_cb>, DB_MAX_SUBSCRIBERS>; //list of subscribers. subscribed events bitset and callback to run
 
     /* CTOR -

@@ -192,12 +192,13 @@ void Database<DATA_TYPES...>::publish()
 
     for (auto &[list, cb] : m_subscribers)
     {
-        dirty_list_t intersected_bits = tmp & list;
-        if (intersected_bits.any())
+        if (dirty_list_t(tmp & list).any())
         {
-            cb(std::move(intersected_bits));
+            cb(tmp);
         }
     }
+
+    m_dirtyList.reset();
 }
 
 template <class... DATA_TYPES>
