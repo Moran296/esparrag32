@@ -22,6 +22,8 @@ class MqttClient
 public:
     static constexpr int TOPIC_BUFFER_SIZE = 100;
     static constexpr int PAYLOAD_BUFFER_SIZE = 4096;
+    static constexpr char IDENTIFICATION_TOPIC[] = "/hiya";
+    static constexpr char IDENTIFICATION_REQUEST[] = "/identify";
     struct mqtt_event_handler_t
     {
         mqtt_handler_callback cb;
@@ -44,13 +46,13 @@ private:
     void handleData(esp_mqtt_event_t *event);
     void updateCloudState(eMqttState state);
     void init(DB_PARAM_DIRTY_LIST(Settings::Status) list);
+    void identify();
     bool subscribe(const char *topic);
     eResult publish(const char *topic, const char *payload);
     void reSubscribe();
     mqtt_event_handler_t *findHandler(const char *topic);
 
     static void mqttEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
-    static void identify(Request &req, Response &res);
 
     static char m_payload[PAYLOAD_BUFFER_SIZE];
 };
