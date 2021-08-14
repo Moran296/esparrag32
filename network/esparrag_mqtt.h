@@ -50,6 +50,7 @@ private:
     mqtt_event_handler_t *findHandler(const char *topic);
 
     static void mqttEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
+    static void identify(Request &req, Response &res);
 
     static char m_payload[PAYLOAD_BUFFER_SIZE];
 };

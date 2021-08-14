@@ -87,7 +87,7 @@ void EsparragManager::initName()
     esp_err_t err = esp_read_mac(mac, ESP_MAC_WIFI_STA);
     ESPARRAG_ASSERT(err == ESP_OK);
     char new_name[30]{};
-    snprintf(new_name, 30, "%s-%x%x%x%x%x%x", DEVICE_MODEL,
+    snprintf(new_name, 30, "%s-%x%x%x%x%x%x", DEVICE_NAME,
              mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     Settings::Config.Set<eConfig::DEV_NAME>(new_name);
     ESPARRAG_LOG_INFO("set name: %s", new_name);

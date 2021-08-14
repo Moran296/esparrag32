@@ -18,7 +18,6 @@ void EsparragInterface::RegisterHandlers()
 {
     ON_HTTP("/credentials", POST, credentials_post);
     ON_MQTT("/hello", mqtt_hello);
-    ON_MQTT("/who_are_you", mqtt_who_are_you);
 }
 
 IMPLEMENT_HANDLER(credentials_post)
@@ -54,12 +53,6 @@ IMPLEMENT_HANDLER(credentials_post)
     cJSON_AddStringToObject(res.m_json, "message", "Got it, thanks");
     EsparragManager::CommitConfig();
     return;
-}
-
-IMPLEMENT_HANDLER(mqtt_who_are_you)
-{
-    ESPARRAG_LOG_INFO("who am i?");
-    cJSON_AddStringToObject(res.m_json, "i_am", DEVICE_MODEL);
 }
 
 IMPLEMENT_HANDLER(mqtt_hello)

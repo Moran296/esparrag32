@@ -20,7 +20,6 @@ private:
 
     DECLARE_HANDLER(credentials_post)
     DECLARE_HANDLER(mqtt_hello)
-    DECLARE_HANDLER(mqtt_who_are_you)
 };
 
 #endif

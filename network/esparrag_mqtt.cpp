@@ -47,10 +47,23 @@ void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_
         break;
     }
 }
+
+void MqttClient::identify(Request &req, Response &res)
+{
+    ESPARRAG_LOG_INFO("who am i?");
+    cJSON_AddStringToObject(res.m_json, "name", DEVICE_NAME);
+    cJSON_AddStringToObject(res.m_json, "description", DEVICE_DESC);
+}
+
 void MqttClient::Init()
 {
     auto changeCB = DB_PARAM_CALLBACK(Settings::Status)::create<MqttClient, &MqttClient::init>(*this);
     Settings::Status.Subscribe<eStatus::BROKER_IP>(changeCB);
+
+    mqtt_event_handler_t handler;
+    m_handlers.emplace_back(mqtt_event_handler_t{.cb = mqtt_handler_callback::create<identify>(),
+                                                 .topic = "/who_are_you",
+                                                 .isSubscribed = false});
 }
 
 void MqttClient::On(const char *topic, mqtt_handler_callback callback)
@@ -101,8 +114,11 @@ void MqttClient::handleData(esp_mqtt_event_t *event)
 
     if (uuid && cJSON_IsString(uuid))
     {
+        ESPARRAG_LOG_INFO("there is uuid here");
         cJSON_AddItemReferenceToObject(response.m_json, "uuid", uuid);
     }
+    else
+        ESPARRAG_LOG_ERROR("missing uuid");
 
     strlcat(topic, "/response", TOPIC_BUFFER_SIZE);
     memset(m_payload, 0, sizeof(m_payload));
@@ -234,9 +250,7 @@ const char *MqttClient::constructFullTopic(const char *topic)
     ESPARRAG_ASSERT(topic[0] == '/');
 
     memset(buffer, 0, TOPIC_BUFFER_SIZE);
-    const char *name = nullptr;
-    Settings::Config.Get<eConfig::DEV_NAME>(name);
-    snprintf(buffer, TOPIC_BUFFER_SIZE, "/%s%s", name, topic);
+    snprintf(buffer, TOPIC_BUFFER_SIZE, "/%s%s", DEVICE_NAME, topic);
 
     return buffer;
 }
