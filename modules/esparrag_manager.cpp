@@ -3,7 +3,19 @@
 
 static EsparragManager *s_this = nullptr;
 
-EsparragManager::EsparragManager() : m_interface(m_mqtt, m_server)
+MqttClient &EsparragManager::GetMqtt()
+{
+    ESPARRAG_ASSERT(s_this);
+    return s_this->m_mqtt;
+}
+
+HttpServer &EsparragManager::GetHttp()
+{
+    ESPARRAG_ASSERT(s_this);
+    return s_this->m_http;
+}
+
+EsparragManager::EsparragManager() : m_interface(m_mqtt, m_http)
 {
     ESPARRAG_ASSERT(s_this == nullptr);
     s_this = this;
@@ -29,7 +41,7 @@ void EsparragManager::initComponents()
     initName();
     m_mqtt.Init();
     Mdns::Init();
-    ESPARRAG_ASSERT(m_server.Init() == eResult::SUCCESS);
+    ESPARRAG_ASSERT(m_http.Init() == eResult::SUCCESS);
     ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
     m_interface.RegisterHandlers();
 }

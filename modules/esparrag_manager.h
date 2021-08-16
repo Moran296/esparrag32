@@ -28,6 +28,8 @@ public:
     void Run();
     static void CommitConfig();
     static void CommitStatus();
+    static MqttClient &GetMqtt();
+    static HttpServer &GetHttp();
 
 private:
     static void entryFunction(void *arg);
@@ -41,13 +43,12 @@ private:
     TaskHandle_t m_task;
     EventGroupHandle_t m_eventGroup;
     Wifi m_wifi;
-    HttpServer m_server;
+    HttpServer m_http;
     MqttClient m_mqtt;
     EsparragInterface m_interface;
 
     EsparragManager(EsparragManager const &) = delete;
     EsparragManager &operator=(EsparragManager const &) = delete;
-    //Executioner<etl::delegate<void(void)>> m_executioner;
 };
 
 #endif
