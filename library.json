@@ -1,0 +1,36 @@
+{
+  "frameworks": "espidf",
+  "platforms": "espressif32",
+  "version": "1.0.0",
+  "dependencies": {
+    "name": "etl",
+    "version": "https://github.com/ETLCPP/etl.git#2a01d36ea47a73af05"
+  },
+  "build": {
+    "unflags": [
+      "-std=gnu++11",
+      "-Og"
+    ],
+    "flags": [
+      "-std=c++17",
+      "-std=gnu++17",
+      "-Imodules/",
+      "-Inetwork/",
+      "-Idrivers/",
+      "-Icommon/",
+      "-Idatabase/",
+      "-Os"
+    ],
+    "extraScript": "COMMIT_ID.py",
+    "includeDir": ".",
+    "srcDir": ".",
+    "srcFilter": [
+      "-<*>",
+      "+<modules>",
+      "+<common>",
+      "+<database>",
+      "+<drivers>",
+      "+<network>"
+    ]
+  }
+}
