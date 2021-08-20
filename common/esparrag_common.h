@@ -31,6 +31,8 @@ enum class eResult : uint8_t
     ERROR_WIFI,
     ERROR_CONFIG_LIMITS,
     ERROR_NOT_FOUND,
+    ERROR_MEMORY,
+    ERROR_CONNECTION_FAILURE,
     ERROR_GENERAL,
 
     NUM
