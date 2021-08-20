@@ -21,7 +21,6 @@
       "-Idatabase/",
       "-Os"
     ],
-    "extraScript": "COMMIT_ID.py",
     "includeDir": ".",
     "srcDir": ".",
     "srcFilter": [
