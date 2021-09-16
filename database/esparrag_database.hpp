@@ -2,6 +2,9 @@
 #include "esparrag_log.h"    // ESPARRAG LOG. remove if changed to generic
 #include "lock.h"
 
+#define WRITER_LOCK() Lock lock(m_mutex)
+#define READER_LOCK() SharedLock lock(m_mutex)
+
 template <class... DATA_TYPES>
 Database<DATA_TYPES...>::Database(const char *name, DATA_TYPES... args) : m_data(args...), m_nvs(name)
 {
@@ -25,8 +28,6 @@ Database<DATA_TYPES...>::Database(const char *name, DATA_TYPES... args) : m_data
 
     (lambda(args), ...);
 
-    m_mutex = xSemaphoreCreateMutex();
-    ESPARRAG_ASSERT(m_mutex != nullptr);
     m_commitTimer = xTimerCreate("commit timer", MAX_TIME_TO_COMMIT, pdFALSE, this, userFailedToCommit);
     ESPARRAG_ASSERT(m_commitTimer != nullptr);
 
@@ -37,7 +38,7 @@ template <class... DATA_TYPES>
 template <size_t ID, class TYPE>
 bool Database<DATA_TYPES...>::Set(TYPE val)
 {
-    Lock lock(m_mutex);
+    WRITER_LOCK();
     //auto &data = std::get<Data<ID, TYPE>>(m_data); --> this allow more explicit type enforcing
     auto &data = std::get<ID>(m_data);
     if (data == val)
@@ -70,7 +71,7 @@ template <class... DATA_TYPES>
 template <size_t ID, class TYPE>
 void Database<DATA_TYPES...>::Get(TYPE &val)
 {
-    Lock lock(m_mutex);
+    READER_LOCK();
     auto &c = std::get<Data<ID, TYPE>>(m_data); //--> this allow more explicit type enforcing
     //auto &c = std::get<ID>(m_data);
     val = c.m_val;
@@ -115,7 +116,7 @@ void Database<DATA_TYPES...>::writeData(DATA &data)
 template <class... DATA_TYPES>
 void Database<DATA_TYPES...>::writeToFlash()
 {
-    Lock lock(m_mutex);
+    READER_LOCK();
     std::apply([this](auto &...data)
                { (this->writeData(data), ...); },
                m_data);
@@ -163,7 +164,7 @@ template <class... DATA_TYPES>
 void Database<DATA_TYPES...>::RestoreDefault()
 {
     {
-        Lock lock(m_mutex);
+        WRITER_LOCK();
         std::apply([this](auto &...data)
                    { (this->restoreData(data), ...); },
                    m_data);

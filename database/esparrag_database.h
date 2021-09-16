@@ -10,6 +10,7 @@
 #include "etl/vector.h"    //subscribers list
 #include "esparrag_data.h" // data struct
 #include "esparrag_nvs.h"  // Save and load from flash. remove and fine solution if generic
+#include <shared_mutex>
 
 #define DB_PARAM_DIRTY_LIST(DATABASE) decltype(DATABASE)::dirty_list_t
 #define DB_PARAM_CALLBACK(DATABASE) decltype(DATABASE)::db_change_event_cb
@@ -123,7 +124,7 @@ private:
     dirty_list_t m_dirtyList;
     subscribers_list_t m_subscribers;
     xTimerHandle m_commitTimer;
-    xSemaphoreHandle m_mutex;
+    std::shared_mutex m_mutex;
 
     template <class DATA>
     void writeData(DATA &data);
