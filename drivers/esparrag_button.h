@@ -113,6 +113,8 @@ public:
     */
     eResult RegisterRelease(const buttonCB &cb);
 
+    MicroSeconds lastEventTime{};
+
 private:
     GPI &m_gpi;
     callback_list_t m_pressCallbacks{};

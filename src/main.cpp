@@ -30,6 +30,8 @@
 
 void goo(void *arg, uint32_t hello)
 {
+    Button *button = reinterpret_cast<Button *>(arg);
+
     switch (hello)
     {
     case FAST_PRESS:
@@ -71,6 +73,9 @@ void goo(void *arg, uint32_t hello)
     default:
         ESPARRAG_LOG_INFO("whaaaaattt");
     }
+
+    MicroSeconds timeFromEvent = esp_timer_get_time() - button->lastEventTime;
+    ESPARRAG_LOG_INFO("time - %llu", timeFromEvent.value());
 }
 
 extern "C" void app_main()
@@ -78,16 +83,15 @@ extern "C" void app_main()
 
     // EsparragManager manager;
     // manager.Run();
-
     GPI gpi1{27, GPIO_INTR_DISABLE, true, false, true};
     Button b1{gpi1};
 
-    b1.RegisterPress({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = SHORT_PRESS, .cb_time = 0});
-    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = SHORT_RELEASE, .cb_time = 0});
-    b1.RegisterPress({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONG_PRESS, .cb_time = 2500});
-    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONG_RELEASE, .cb_time = 2500});
-    b1.RegisterPress({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONGER_PRESS, .cb_time = 5000});
-    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONGER_RELEASE, .cb_time = 5000});
+    b1.RegisterPress({.cb_function = goo, .cb_arg1 = &b1, .cb_arg2 = SHORT_PRESS, .cb_time = 0});
+    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = &b1, .cb_arg2 = SHORT_RELEASE, .cb_time = 0});
+    b1.RegisterPress({.cb_function = goo, .cb_arg1 = &b1, .cb_arg2 = LONG_PRESS, .cb_time = 2500});
+    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = &b1, .cb_arg2 = LONG_RELEASE, .cb_time = 2500});
+    b1.RegisterPress({.cb_function = goo, .cb_arg1 = &b1, .cb_arg2 = LONGER_PRESS, .cb_time = 5000});
+    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = &b1, .cb_arg2 = LONGER_RELEASE, .cb_time = 5000});
 
     vTaskSuspend(nullptr);
 }

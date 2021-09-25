@@ -206,6 +206,7 @@ void Button::startTimer(ePressType timeout)
 void IRAM_ATTR Button::buttonISR(void *arg)
 {
     Button *button = reinterpret_cast<Button *>(arg);
+    button->lastEventTime = esp_timer_get_time();
     if (!button->m_sampler.IsValidNow())
         return;
 
@@ -225,5 +226,6 @@ void IRAM_ATTR Button::buttonISR(void *arg)
 void Button::timerCB(xTimerHandle timer)
 {
     Button *button = reinterpret_cast<Button *>(pvTimerGetTimerID(timer));
+    button->lastEventTime = esp_timer_get_time();
     button->receive(TimerEvent());
 }
