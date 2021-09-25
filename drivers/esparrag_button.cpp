@@ -73,6 +73,7 @@ Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
     ESPARRAG_ASSERT(m_timer);
     set_states(m_stateList, etl::size(m_stateList));
 
+    m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
     res = m_gpi.EnableInterrupt(buttonISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
     start();
