@@ -19,10 +19,14 @@
 
 #define FAST_PRESS 1
 #define SHORT_PRESS 2
+#define FAST_PRESS_2 34
+#define SHORT_PRESS_2 35
 #define LONG_PRESS 3
 #define FAST_RELEASE 4
 #define SHORT_RELEASE 5
 #define LONG_RELEASE 6
+#define LONGER_PRESS 59
+#define LONGER_RELEASE 69
 
 void goo(void *arg, uint32_t hello)
 {
@@ -52,11 +56,11 @@ void goo(void *arg, uint32_t hello)
     case LONG_RELEASE:
         ESPARRAG_LOG_INFO("long release");
         break;
-    case 12:
-        ESPARRAG_LOG_INFO("fast press two buttons");
+    case LONGER_PRESS:
+        ESPARRAG_LOG_INFO("longer press");
         break;
-    case 13:
-        ESPARRAG_LOG_INFO("fast release two buttons");
+    case LONGER_RELEASE:
+        ESPARRAG_LOG_INFO("longer release");
         break;
     case 55:
         ESPARRAG_LOG_INFO("2b short timed callback press");
@@ -69,14 +73,21 @@ void goo(void *arg, uint32_t hello)
     }
 }
 
-#include "etl/vector.h"
-#include "etl/algorithm.h"
-
 extern "C" void app_main()
 {
 
-    EsparragManager manager;
-    manager.Run();
+    // EsparragManager manager;
+    // manager.Run();
+
+    GPI gpi1{27, GPIO_INTR_DISABLE, true, false, true};
+    Button b1{gpi1};
+
+    b1.RegisterPress({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = SHORT_PRESS, .cb_time = 0});
+    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = SHORT_RELEASE, .cb_time = 0});
+    b1.RegisterPress({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONG_PRESS, .cb_time = 2500});
+    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONG_RELEASE, .cb_time = 2500});
+    b1.RegisterPress({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONGER_PRESS, .cb_time = 5000});
+    b1.RegisterRelease({.cb_function = goo, .cb_arg1 = nullptr, .cb_arg2 = LONGER_RELEASE, .cb_time = 5000});
 
     vTaskSuspend(nullptr);
 }
