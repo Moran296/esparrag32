@@ -7,10 +7,11 @@
 #include "esparrag_log.h"
 #include "esparrag_gpio.h"
 #include "etl/array.h"
-#include "etl/fsm.h"
 #include "etl/enum_type.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
+#define CALL_ON_STATE_ENTRY 1
+#include "fsm_task.h"
 
 struct ButtonEvent
 {
@@ -23,28 +24,27 @@ struct ButtonEvent
     };
 };
 
-class PressEvent : public etl::message<ButtonEvent::PRESS>
+class PressEvent
 {
 };
-class ReleaseEvent : public etl::message<ButtonEvent::RELEASE>
+class ReleaseEvent
 {
 };
-class TimerEvent : public etl::message<ButtonEvent::TIMER_EVENT>
-{
-};
-class InvalidEvent : public etl::message<ButtonEvent::NUM>
+class TimerEvent
 {
 };
 
-struct eStateId
+using ButtonEventVariant = std::variant<PressEvent, ReleaseEvent, TimerEvent>;
+
+struct IdleState
 {
-    enum enum_type
-    {
-        IDLE,
-        PRESSED,
-        NUM
-    };
 };
+struct PressedState
+{
+    int m_timeouts = 0;
+};
+
+using ButtonStateVariant = std::variant<IdleState, PressedState>;
 
 struct ePressType
 {
@@ -64,11 +64,10 @@ struct ePressType
     ETL_END_ENUM_TYPE
 };
 
-class Button : public etl::fsm,
-               public FSM_COUNT
+class Button : public FsmTask<Button, ButtonStateVariant, ButtonEventVariant>
 {
 public:
-    friend class TwoButtons;
+    //friend class TwoButtons;
 
     struct buttonCB
     {
@@ -80,7 +79,7 @@ public:
     };
 
     static constexpr int MAX_CALLBACKS = ePressType::PRESS_NUM;
-    static constexpr int BUTTON_DEBOUNCE_TIME_uS = 1500;
+    static constexpr int BUTTON_DEBOUNCE_TIME_uS = 3500;
     using callback_list_t = etl::array<buttonCB, MAX_CALLBACKS>;
 
     /*
@@ -113,6 +112,23 @@ public:
     */
     eResult RegisterRelease(const buttonCB &cb);
 
+    template <class State>
+    void on_entry(const State &) const {}
+    //default on event handler
+    template <class State, class Event>
+    auto on_event(const State &, const Event &) const
+    {
+        ets_printf("pressed unknown \n");
+        return std::nullopt;
+    }
+
+    //idle state events
+    auto on_event(IdleState &, PressEvent &);
+    //pressed state events
+    void on_entry(PressedState &);
+    auto on_event(PressedState &, ReleaseEvent &);
+    auto on_event(PressedState &, TimerEvent &);
+
     MicroSeconds lastEventTime{};
 
 private:
@@ -134,33 +150,7 @@ private:
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
 
-    etl::ifsm_state *m_stateList[eStateId::NUM]{&m_idle, &m_pressed};
-
     //Button states
-    class IdleState : public etl::fsm_state<Button, IdleState, eStateId::IDLE,
-                                            PressEvent>
-    {
-    public:
-        etl::fsm_state_id_t on_event(const PressEvent &event);
-        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-    };
-
-    class PressedState : public etl::fsm_state<Button, PressedState, eStateId::PRESSED,
-                                               ReleaseEvent,
-                                               TimerEvent>
-    {
-    public:
-        etl::fsm_state_id_t on_enter_state();
-        etl::fsm_state_id_t on_event(const ReleaseEvent &event);
-        etl::fsm_state_id_t on_event(const TimerEvent &event);
-        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-
-    private:
-        int m_timeouts = 0;
-    };
-
-    IdleState m_idle;
-    PressedState m_pressed;
 };
 
 #endif

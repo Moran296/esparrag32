@@ -2,62 +2,41 @@
 #include "etl/algorithm.h"
 
 // ========IDLE STATE============
-etl::fsm_state_id_t
-Button::IdleState::on_event(const PressEvent &event)
-{
-    return eStateId::PRESSED;
-}
 
-etl::fsm_state_id_t
-Button::IdleState::on_event_unknown(const etl::imessage &event)
+auto Button::on_event(IdleState &state, PressEvent &event)
 {
-    return STATE_ID;
+    return PressedState{};
 }
 
 // ========PRESSED STATE============
-etl::fsm_state_id_t
-Button::PressedState::on_enter_state()
+void Button::on_entry(PressedState &state)
 {
-    auto &button = get_fsm_context();
-    button.runPressCallback(button.m_pressCallbacks, ePressType::FAST_PRESS);
+    runPressCallback(m_pressCallbacks, ePressType::FAST_PRESS);
 
-    m_timeouts = ePressType::PRESS_TIMEOUT_1;
-    button.m_lastPressTime = esp_timer_get_time();
-    button.startTimer(ePressType(m_timeouts));
-    return STATE_ID;
+    state.m_timeouts = ePressType::PRESS_TIMEOUT_1;
+    m_lastPressTime = esp_timer_get_time();
+    startTimer(ePressType(state.m_timeouts));
 }
 
-etl::fsm_state_id_t
-Button::PressedState::on_event(const ReleaseEvent &event)
+auto Button::on_event(PressedState &state, ReleaseEvent &event)
 {
-    auto &button = get_fsm_context();
-    button.stopTimer(true);
-    button.runReleaseCallback(button.m_releaseCallbacks);
-    return eStateId::IDLE;
+    stopTimer(true);
+    runReleaseCallback(m_releaseCallbacks);
+    return IdleState{};
 }
 
-etl::fsm_state_id_t
-Button::PressedState::on_event(const TimerEvent &event)
+auto Button::on_event(PressedState &state, TimerEvent &event)
 {
-    auto &button = get_fsm_context();
-    button.runPressCallback(button.m_pressCallbacks, ePressType(m_timeouts));
+    runPressCallback(m_pressCallbacks, ePressType(state.m_timeouts));
 
-    m_timeouts++;
-    button.startTimer(ePressType(m_timeouts));
-    return STATE_ID;
-}
-
-etl::fsm_state_id_t
-Button::PressedState::on_event_unknown(const etl::imessage &event)
-{
-    m_timeouts = 0;
-    ets_printf("pressed unknown %d\n", (uint8_t)get_state_id());
-    return STATE_ID;
+    state.m_timeouts++;
+    startTimer(ePressType(state.m_timeouts));
+    return std::nullopt;
 }
 
 // ==========Button==============
 
-Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
+Button::Button(GPI &gpi) : FsmTask(2048, 3, nullptr, 1), m_gpi(gpi)
 {
     eResult res = m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
@@ -71,12 +50,10 @@ Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 
     m_timer = xTimerCreate("button", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
-    set_states(m_stateList, etl::size(m_stateList));
 
     m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
     res = m_gpi.EnableInterrupt(buttonISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
-    start();
 }
 
 eResult Button::RegisterPress(const buttonCB &cb)
@@ -141,11 +118,7 @@ void Button::runPressCallback(callback_list_t &cb_list, ePressType press)
 
     auto &callback = cb_list[press];
     if (callback.cb_function != nullptr)
-    {
-        BaseType_t higherPriorityExists;
-        xTimerPendFunctionCallFromISR(callback.cb_function, callback.cb_arg1, callback.cb_arg2, &higherPriorityExists);
-        YIELD_FROM_ISR_IF(higherPriorityExists);
-    }
+        callback.cb_function(callback.cb_arg1, callback.cb_arg2);
 }
 
 void Button::runReleaseCallback(callback_list_t &cb_list)
@@ -167,9 +140,7 @@ void Button::runReleaseCallback(callback_list_t &cb_list)
         {
             if (timePassedSincePress >= callback.cb_time)
             {
-                BaseType_t higherPriorityExists;
-                xTimerPendFunctionCallFromISR(callback.cb_function, callback.cb_arg1, callback.cb_arg2, &higherPriorityExists);
-                YIELD_FROM_ISR_IF(higherPriorityExists);
+                callback.cb_function(callback.cb_arg1, callback.cb_arg2);
                 return;
             }
         }
@@ -205,6 +176,7 @@ void Button::startTimer(ePressType timeout)
 
 void IRAM_ATTR Button::buttonISR(void *arg)
 {
+    BaseType_t isHigerWoken = pdFALSE;
     Button *button = reinterpret_cast<Button *>(arg);
     button->lastEventTime = esp_timer_get_time();
     if (!button->m_sampler.IsValidNow())
@@ -214,18 +186,20 @@ void IRAM_ATTR Button::buttonISR(void *arg)
     if (button->m_buttonState)
     {
         button->m_gpi.SetInterruptType(GPIO_INTR_LOW_LEVEL);
-        button->receive(PressEvent());
+        button->DispatchFromISR(PressEvent{}, &isHigerWoken);
     }
     else
     {
         button->m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
-        button->receive(ReleaseEvent());
+        button->DispatchFromISR(ReleaseEvent{}, &isHigerWoken);
     }
+
+    YIELD_FROM_ISR_IF(isHigerWoken);
 }
 
 void Button::timerCB(xTimerHandle timer)
 {
     Button *button = reinterpret_cast<Button *>(pvTimerGetTimerID(timer));
     button->lastEventTime = esp_timer_get_time();
-    button->receive(TimerEvent());
+    button->Dispatch(TimerEvent{});
 }
