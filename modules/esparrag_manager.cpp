@@ -42,7 +42,7 @@ void EsparragManager::initComponents()
     m_mqtt.Init();
     Mdns::Init();
     ESPARRAG_ASSERT(m_http.Init() == eResult::SUCCESS);
-    ESPARRAG_ASSERT(m_wifi.Init() == eResult::SUCCESS);
+    m_wifi.Init();
     m_interface.RegisterHandlers();
 }
 

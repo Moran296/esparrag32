@@ -1,23 +1,76 @@
 #include "esparrag_wifi.h"
-#include "string.h"
 #include "esp_wifi.h"
-#include "esparrag_manager.h"
+#include <cstring>
+#include <cstdlib>
+#include "esparrag_log.h"
 
-eResult Wifi::Init()
+
+void Wifi::eventHandler(void *event_handler_arg,
+                        esp_event_base_t event_base,
+                        int32_t event_id,
+                        void *event_data)
+{
+    ESPARRAG_LOG_INFO("WIFI event %d\n", event_id);
+    Wifi *wifi = reinterpret_cast<Wifi *>(event_handler_arg);
+
+    if (event_base == WIFI_EVENT)
+    {
+        switch (event_id)
+        {
+            case WIFI_EVENT_STA_START:
+                wifi->Dispatch(EVENT_StaStart{});
+                break;
+
+            case WIFI_EVENT_STA_CONNECTED:
+                wifi->Dispatch(EVENT_StaConnected{});
+                break;
+
+            case WIFI_EVENT_STA_DISCONNECTED:
+                wifi->Dispatch(EVENT_LoseConnection{});
+                break;
+
+            case WIFI_EVENT_AP_START:
+                ESPARRAG_LOG_INFO("AP started successfully\n");
+                break;
+
+            case WIFI_EVENT_AP_STOP:
+                wifi->Dispatch(EVENT_APStop{});
+                break;
+
+            case WIFI_EVENT_AP_STACONNECTED:
+                wifi->Dispatch(EVENT_UserConnected{});
+                break;
+
+            case WIFI_EVENT_AP_STADISCONNECTED:
+                wifi->Dispatch(EVENT_LoseConnection{});
+                break;
+        }
+    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        wifi->Dispatch(EVENT_GotIP{});
+    }
+}
+
+Wifi::Wifi()
+{
+    Init();
+    Start();
+}
+
+void Wifi::Init()
 {
     esp_err_t err = 0;
     err = esp_netif_init();
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d\n", __LINE__, err);
+        return;
     }
 
     err = esp_event_loop_create_default();
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d\n", __LINE__, err);
+        return;
     }
 
     err = esp_event_handler_instance_register(ESP_EVENT_ANY_BASE,
@@ -27,268 +80,244 @@ eResult Wifi::Init()
                                               NULL);
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d\n", __LINE__, err);
+        return;
     }
 
-    auto changeCB = DB_PARAM_CALLBACK(Settings::Config)::create<Wifi, &Wifi::dbConfigChange>(*this);
-    Settings::Config.Subscribe<eConfig::STA_SSID,
-                               eConfig::DEV_NAME,
-                               eConfig::AP_PASSWORD>(changeCB);
-
     ap_netif = esp_netif_create_default_wifi_ap();
-    ESPARRAG_ASSERT(ap_netif != nullptr);
+    configASSERT(ap_netif != nullptr);
     sta_netif = esp_netif_create_default_wifi_sta();
-    ESPARRAG_ASSERT(sta_netif != nullptr);
+    configASSERT(sta_netif != nullptr);
 
     wifi_init_config_t initConf = WIFI_INIT_CONFIG_DEFAULT();
+    initConf.nvs_enable = false;
     err = esp_wifi_init(&initConf);
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi init failed in line %d. err %d\n", __LINE__, err);
+        return;
     }
 
-    return provision();
+    return;
 }
 
-eResult Wifi::provision()
-{
-    ESPARRAG_LOG_INFO("provisioning...");
-
-    uint8_t mode = 0;
-    Settings::Status.Get<eStatus::WIFI_STATE>(mode);
-
-    if (mode == WIFI_STA && internet_connected)
-        return eResult::SUCCESS;
-
-    if (mode == WIFI_STA)
-    {
-        sta_connect();
+bool Wifi::Connect(const SSID_T& ssid, const PASSWORD_T& password) {
+    if (ssid.empty() || password.empty()) {
+        return false;
     }
 
-    //check for sta credentials in database
-    const char *sta_ssid = nullptr;
-    const char *sta_password = nullptr;
-    Settings::Config.Get<eConfig::STA_SSID, eConfig::STA_PASSWORD>(sta_ssid, sta_password);
-    if (strlen(sta_ssid))
-        ESPARRAG_LOG_WARNING("ssid %s", sta_ssid);
-    if (strlen(sta_password))
-        ESPARRAG_LOG_WARNING("pass %s", sta_password);
-    if (ValidityCheck(sta_ssid, sta_password) == true)
-    {
-        if (mode == WIFI_AP)
-        {
-            ESPARRAG_LOG_INFO("disconnect");
-            disconnect();
-        }
-
-        ESPARRAG_LOG_INFO("credentials found. starting sta");
-        sta_start(sta_ssid, sta_password);
+    if (IsInState<STATE_Connected>()) {
+        ESPARRAG_LOG_ERROR("already connected. call disconnect first\n");
+        return false;
     }
 
-    else if (mode == WIFI_OFFLINE)
-    {
-        ESPARRAG_LOG_INFO("starting ap");
-        ap_start();
+    m_ssid = ssid;
+    m_password = password;
+
+    ESPARRAG_LOG_INFO("*connecting....*\n");
+    Dispatch(EVENT_StaConnect{});
+    return true;
+}    
+
+bool Wifi::SwitchToAP() {
+    if (IsInState<STATE_AP>()) {
+        ESPARRAG_LOG_WARNING("already AP\n");
+        return false;
     }
 
-    return eResult::SUCCESS;
-}
-
-bool Wifi::ValidityCheck(const char *ssid, const char *password) const
-{
-    if (!ssid || !password)
-        return false;
-
-    uint8_t ssidlen = strlen(ssid);
-    uint8_t passlen = strlen(password);
-
-    if (ssidlen == 0 || ssidlen > 32)
-        return false;
-    if (passlen > 0 && passlen < 8)
-        return false;
-    if (passlen > 19)
-        return false;
-
+    Dispatch(EVENT_APStart{});
     return true;
 }
 
-eResult Wifi::sta_start(const char *ssid, const char *password)
+bool Wifi::Disconnect() {
+    if (IsInState<STATE_Offline>()) {
+        ESPARRAG_LOG_WARNING("already offline\n");
+        return false;
+    }
+
+    Dispatch(EVENT_Disconnect{});
+    return true;
+}
+
+// ENTRY FUNCTIONS
+void Wifi::on_entry(STATE_Offline&) {
+    ESPARRAG_LOG_INFO("wifi Offline\n");
+}
+
+void Wifi::on_entry(STATE_AP&) {
+    ESPARRAG_LOG_INFO("wifi is ap\n");
+}
+
+void Wifi::on_entry(STATE_Connecting& state) {
+    ESPARRAG_LOG_INFO("wifi is trying to connect......\n");
+    sta_start(); 
+}
+
+void Wifi::on_entry(STATE_Connected&) {
+    ESPARRAG_LOG_INFO("wifi connected\n");
+}
+
+//OFFLINE
+auto Wifi::on_event(STATE_Offline &, EVENT_APStart &) {
+    ESPARRAG_LOG_INFO("state offline got AP Start event\n");
+    ap_start();
+    return STATE_AP{};
+}
+
+auto Wifi::on_event(STATE_Offline &, EVENT_StaConnect &event) {
+    ESPARRAG_LOG_INFO("state offline got StaConnect event\n");
+    return STATE_Connecting{};
+}
+
+//AP
+auto Wifi::on_event(STATE_AP &, EVENT_APStart &) {
+    ESPARRAG_LOG_INFO("state AP got APStart event\n");
+    return STATE_AP{};
+}
+
+auto Wifi::on_event(STATE_AP &, EVENT_APStop &) {
+    ESPARRAG_LOG_INFO("state AP got APStop event\n");
+    return STATE_Offline{};
+}
+
+auto Wifi::on_event(STATE_AP &, EVENT_StaConnect &event) {
+    ESPARRAG_LOG_INFO("state AP got StaConnect event\n");
+    disconnect();
+    return STATE_Connecting{};
+}
+
+auto Wifi::on_event(STATE_AP &, EVENT_UserConnected &) {
+    ESPARRAG_LOG_INFO("state AP got UserConnected event\n");
+    return std::nullopt;
+}
+
+//Connecting
+auto Wifi::on_event(STATE_Connecting &, EVENT_LoseConnection &) {
+    ESPARRAG_LOG_INFO("state Connecting got LoseConnection event\n");
+    return std::nullopt;
+}
+
+auto Wifi::on_event(STATE_Connecting &, EVENT_StaStart&) {
+    ESPARRAG_LOG_INFO("state Connecting got StaStart event\n");
+    sta_connect();
+    return std::nullopt;
+}
+
+auto Wifi::on_event(STATE_Connecting &, EVENT_StaConnected &) {
+    ESPARRAG_LOG_INFO("state Connecting got connected event\n");
+    return STATE_Connected{};
+}
+
+auto Wifi::on_event(STATE_Connecting &, EVENT_GotIP &) {
+    ESPARRAG_LOG_INFO("state Connecting got GotIP event\n");
+    return STATE_Connected{};
+}
+
+//Connected
+auto Wifi::on_event(STATE_Connected &, EVENT_LoseConnection &) {
+    ESPARRAG_LOG_INFO("state Connected got LoseConnection event\n");
+    return STATE_Connecting{};
+}
+
+auto Wifi::on_event(STATE_Connected &, EVENT_Disconnect &) {
+    ESPARRAG_LOG_INFO("state Connected got Disconnect event\n");
+    disconnect();
+    return STATE_Offline{};
+}
+
+auto Wifi::on_event(STATE_Connected &, EVENT_GotIP &) {
+    ESPARRAG_LOG_INFO("state Connected got GotIP event\n");
+    return std::nullopt;
+}
+
+// Private functions
+
+bool Wifi::sta_start()
 {
     esp_err_t err = ESP_OK;
     err = esp_wifi_set_mode(WIFI_MODE_STA);
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d\n", __LINE__, err);
+        return false;
     }
     wifi_config_t config;
     memset(&config, 0, sizeof(config));
-    strlcpy((char *)config.sta.ssid, ssid, sizeof(config.sta.ssid));
-    strlcpy((char *)config.sta.password, password, sizeof(config.sta.password));
+    strlcpy((char *)config.sta.ssid, m_ssid.data(), sizeof(config.sta.ssid));
+    strlcpy((char *)config.sta.password, m_password.data(), sizeof(config.sta.password));
     config.sta.bssid_set = false;
+    config.sta.scan_method = WIFI_ALL_CHANNEL_SCAN;
 
     err = esp_wifi_set_config(WIFI_IF_STA, &config);
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d\n", __LINE__, err);
+        return false;
     }
+
     err = esp_wifi_start();
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d\n", __LINE__, err);
+        return false;
     }
 
-    ESPARRAG_LOG_INFO("sta starting");
-    return eResult::SUCCESS;
+    return true;
 }
 
-eResult Wifi::sta_connect()
+bool Wifi::sta_connect()
 {
+    ESPARRAG_LOG_INFO("sta connecting.....\n");
     esp_err_t err = esp_wifi_connect();
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d\n", __LINE__, err);
+        return false;
     }
 
-    return eResult::SUCCESS;
+    return true;
 }
 
 void Wifi::disconnect()
 {
     esp_wifi_disconnect();
     esp_wifi_stop();
-    //should we switch to offline?
-    eWifiState state = WIFI_OFFLINE;
-    Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
-    Settings::Status.Commit();
 }
 
-eResult Wifi::ap_start()
+bool Wifi::ap_start()
 {
-    const char *ssid = nullptr;
-    const char *password = nullptr;
-    Settings::Config.Get<eConfig::DEV_NAME, eConfig::AP_PASSWORD>(ssid, password);
-    ESPARRAG_LOG_INFO("ap ssid %s password %s", ssid, password);
-    ESPARRAG_ASSERT(ValidityCheck(ssid, password) == true);
+    ESPARRAG_LOG_INFO("ap ssid %s password %s\n", AP_SSID, AP_PASSWORD);
 
     esp_err_t err = ESP_OK;
     err = esp_wifi_set_mode(WIFI_MODE_AP);
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d\n", __LINE__, err);
+        return false;
     }
     wifi_config_t config;
     memset(&config, 0, sizeof(config));
-    strlcpy((char *)config.ap.ssid, ssid, sizeof(config.ap.ssid));
-    strlcpy((char *)config.ap.password, password, sizeof(config.ap.password));
+    strlcpy((char *)config.ap.ssid, AP_SSID, sizeof(config.ap.ssid));
+    strlcpy((char *)config.ap.password, AP_PASSWORD, sizeof(config.ap.password));
     config.ap.max_connection = 4;
-    config.ap.ssid_len = strlen(ssid);
+    config.ap.ssid_len = strlen(AP_SSID);
     config.ap.channel = 1;
     config.ap.authmode = WIFI_AUTH_WPA2_PSK;
 
     err = esp_wifi_set_config(WIFI_IF_AP, &config);
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi ap start failed in line %d. err %d\n", __LINE__, err);
+        return false;
     }
 
+    ESPARRAG_LOG_INFO("starting ap.....\n");
     err = esp_wifi_start();
     if (err != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d", __LINE__, err);
-        return eResult::ERROR_WIFI;
+        ESPARRAG_LOG_ERROR("wifi sta connect failed in line %d. err %d\n", __LINE__, err);
+        return false;
     }
 
-    ESPARRAG_LOG_INFO("starting ap.....");
-    return eResult::SUCCESS;
-}
-
-void Wifi::dbConfigChange(DB_PARAM_DIRTY_LIST(Settings::Config) list)
-{
-    provision();
-}
-
-void Wifi::eventHandler(void *event_handler_arg,
-                        esp_event_base_t event_base,
-                        int32_t event_id,
-                        void *event_data)
-{
-    ESPARRAG_LOG_INFO("WIFI event %d", event_id);
-    Wifi *wifi = reinterpret_cast<Wifi *>(event_handler_arg);
-    static int retries = 0;
-
-    if (event_base == WIFI_EVENT)
-    {
-        if (event_id == WIFI_EVENT_STA_START)
-        {
-            ESPARRAG_LOG_INFO("STA STARTED");
-            esp_netif_set_hostname(wifi->sta_netif, "whatever");
-            wifi->sta_connect();
-        }
-
-        else if (event_id == WIFI_EVENT_STA_CONNECTED)
-        {
-            ESPARRAG_LOG_INFO("STA CONNECTED");
-            wifi->internet_connected = true;
-
-            retries = 0;
-        }
-        else if (event_id == WIFI_EVENT_STA_DISCONNECTED)
-        {
-            wifi->internet_connected = false;
-            ESPARRAG_LOG_INFO("STA DISCONNECTED, reason = %d", ((wifi_event_sta_disconnected_t *)event_data)->reason);
-            int max_reconnections = 5;
-            ESPARRAG_ASSERT(max_reconnections != 0);
-
-            if (retries <= max_reconnections)
-            {
-                ESPARRAG_LOG_INFO("connection retry. %d out of %d", retries, max_reconnections);
-                wifi->sta_connect();
-                retries++;
-            }
-            else
-            {
-                wifi->disconnect();
-                wifi->ap_start();
-            }
-        }
-        else if (event_id == WIFI_EVENT_AP_START)
-        {
-            ESPARRAG_LOG_INFO("AP STARTED");
-            eWifiState state = WIFI_AP;
-            Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
-            Settings::Status.Commit();
-        }
-
-        else if (event_id == WIFI_EVENT_AP_STOP)
-        {
-            ESPARRAG_LOG_INFO("AP STOP");
-        }
-        else if (event_id == WIFI_EVENT_AP_STACONNECTED)
-        {
-            ESPARRAG_LOG_INFO("CLIENT CONNECTED TO AP");
-        }
-        else if (event_id == WIFI_EVENT_AP_STADISCONNECTED)
-        {
-            ESPARRAG_LOG_INFO("CLIENT DISCONNECTED FROM AP");
-        }
-    }
-    else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
-    {
-        ESPARRAG_LOG_INFO("GOT IP");
-        ip_event_got_ip_t *ipevent = (ip_event_got_ip_t *)event_data;
-        char newip[20]{};
-        sprintf(newip, IPSTR, IP2STR(&ipevent->ip_info.ip));
-        eWifiState state = WIFI_STA;
-        Settings::Status.Set<eStatus::WIFI_STATE>((uint8_t)state);
-        Settings::Status.Set<eStatus::STA_IP>(newip);
-        EsparragManager::CommitStatus();
-    }
+    return true;
 }
