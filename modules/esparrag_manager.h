@@ -3,7 +3,6 @@
 
 #include "esparrag_wifi.h"
 #include "esparrag_mqtt.h"
-#include "executioner.h"
 #include "esparrag_database.h"
 #include "esparrag_http.h"
 #include "esparrag_common.h"
