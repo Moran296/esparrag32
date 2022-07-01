@@ -15,7 +15,7 @@ HttpServer &EsparragManager::GetHttp()
     return s_this->m_http;
 }
 
-EsparragManager::EsparragManager() : m_interface(m_mqtt, m_http)
+EsparragManager::EsparragManager() //: m_interface(m_mqtt, m_http)
 {
     ESPARRAG_ASSERT(s_this == nullptr);
     s_this = this;
@@ -40,15 +40,29 @@ void EsparragManager::initComponents()
 
     initName();
     m_mqtt.Init();
-    Mdns::Init();
     ESPARRAG_ASSERT(m_http.Init() == eResult::SUCCESS);
     m_wifi.Init();
-    m_interface.RegisterHandlers();
+    //m_interface.RegisterHandlers();
 }
 
 void EsparragManager::handleEvents()
 {
     initComponents();
+
+    m_wifi.Connect("*****", "*****");
+    while(!m_wifi.IsInState<STATE_Connected>()) {
+
+        vTaskDelay(Seconds(10).toTicks());
+        ESPARRAG_LOG_INFO("connecting to wifi.......");
+    }
+
+    if (Mdns::Init() != true) {
+        ESPARRAG_LOG_ERROR("mdns init failed");
+    } else {
+        m_mqtt.TryConnect(Mdns::FindBroker());
+    }
+
+
 
     ESPARRAG_LOG_INFO("running manager");
     for (;;)

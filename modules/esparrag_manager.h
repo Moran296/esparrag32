@@ -12,7 +12,7 @@
 #include "freertos/timers.h"
 #include "freertos/event_groups.h"
 #include "esp_bit_defs.h"
-#include "esparrag_interface.h"
+//#include "esparrag_interface.h"
 
 class EsparragManager
 {
@@ -44,7 +44,7 @@ private:
     Wifi m_wifi;
     HttpServer m_http;
     MqttClient m_mqtt;
-    EsparragInterface m_interface;
+    //EsparragInterface m_interface;
 
     EsparragManager(EsparragManager const &) = delete;
     EsparragManager &operator=(EsparragManager const &) = delete;

@@ -15,7 +15,6 @@
 #include "esparrag_time_units.h"
 #include "esparrag_settings.h"
 #include "esparrag_two_buttons.h"
-#include "executioner.h"
 
 #define FAST_PRESS 1
 #define SHORT_PRESS 2
