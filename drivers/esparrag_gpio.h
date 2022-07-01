@@ -46,7 +46,7 @@ public:
     using isr_func_t = void (*)(void *arg);
 
     GPI(int pin,
-        gpio_int_type_t isrType,
+        gpio_int_type_t isrType = GPIO_INTR_DISABLE,
         bool active_state = true,
         bool pullup = false,
         bool pulldown = false);
