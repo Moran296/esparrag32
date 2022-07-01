@@ -4,6 +4,8 @@
 #include <cstdlib>
 #include "esparrag_log.h"
 
+using namespace WifiFSM;
+
 
 void Wifi::eventHandler(void *event_handler_arg,
                         esp_event_base_t event_base,

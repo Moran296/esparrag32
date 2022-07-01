@@ -3,6 +3,8 @@
 #include "esparrag_mdns.h"
 #include "lock.h"
 
+using namespace MqttFSM;
+
 char MqttClient::m_payload[PAYLOAD_BUFFER_SIZE]{};
 char MqttClient::m_topic[TOPIC_BUFFER_SIZE]{};
 char EVENT_CONNECT::m_brokerIp[EVENT_CONNECT::MQTT_BROKER_IP_SIZE]{};

@@ -9,6 +9,8 @@
 #include "cJSON.h"
 #include "fsm_task.h"
 
+namespace MqttFSM {
+
 struct STATE_DISABLED{
     static constexpr const char* NAME = "STATE_DISABLED";
 };
@@ -19,7 +21,7 @@ struct STATE_CONNECTED{
     static constexpr const char* NAME = "STATE_CONNECTED";
 };
 
-using MQTTStates = std::variant<STATE_DISABLED,
+using States = std::variant<STATE_DISABLED,
                                 STATE_CONNECTING,
                                 STATE_CONNECTED>;
 
@@ -60,7 +62,7 @@ struct EVENT_INCOMING_DATA{
     static constexpr const char* NAME = "EVENT_INCOMING_DATA";
 };
 
-using MQTTEvent = std::variant<EVENT_BEFORE_CONNECT,
+using Events = std::variant<EVENT_BEFORE_CONNECT,
                                EVENT_CONNECTED,
                                EVENT_CONNECT,
                                EVENT_DISCONNECTED,
@@ -71,9 +73,10 @@ using MQTTEvent = std::variant<EVENT_BEFORE_CONNECT,
                                EVENT_INCOMING_DATA>;
 
 
+} // namespace MqttFSM
 
 
-class MqttClient : public FsmTask<MqttClient, MQTTStates, MQTTEvent>
+class MqttClient : public FsmTask<MqttClient, MqttFSM::States, MqttFSM::Events>
 {
 public:
     using mqtt_handler_callback = std::function<void(const char* topic, cJSON* payload)>;
@@ -96,25 +99,25 @@ public:
     eResult TryConnect(const char* brokerIp);
 
 
-    void on_entry(STATE_DISABLED&);
-    void on_entry(STATE_CONNECTING&);
-    void on_entry(STATE_CONNECTED&);
+    void on_entry(MqttFSM::STATE_DISABLED&);
+    void on_entry(MqttFSM::STATE_CONNECTING&);
+    void on_entry(MqttFSM::STATE_CONNECTED&);
 
-    using return_state_t = std::optional<MQTTStates>;
+    using return_state_t = std::optional<MqttFSM::States>;
 
-    return_state_t on_event(STATE_DISABLED &, EVENT_CONNECT &);
-    return_state_t on_event(STATE_DISABLED &, EVENT_BEFORE_CONNECT &);
+    return_state_t on_event(MqttFSM::STATE_DISABLED &, MqttFSM::EVENT_CONNECT &);
+    return_state_t on_event(MqttFSM::STATE_DISABLED &, MqttFSM::EVENT_BEFORE_CONNECT &);
 
-    return_state_t on_event(STATE_CONNECTING &, EVENT_CONNECTED &);
-    return_state_t on_event(STATE_CONNECTING &, EVENT_DISCONNECTED &);
-    return_state_t on_event(STATE_CONNECTING &, EVENT_ERROR &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTING &, MqttFSM::EVENT_CONNECTED &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTING &, MqttFSM::EVENT_DISCONNECTED &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTING &, MqttFSM::EVENT_ERROR &);
 
-    return_state_t on_event(STATE_CONNECTED &, EVENT_SUBSCRIBE &);
-    return_state_t on_event(STATE_CONNECTED &, EVENT_SUBSCRIBED &);
-    return_state_t on_event(STATE_CONNECTED &, EVENT_PUBLISHED &);
-    return_state_t on_event(STATE_CONNECTED &, EVENT_ERROR &);
-    return_state_t on_event(STATE_CONNECTED &, EVENT_DISCONNECTED &);
-    return_state_t on_event(STATE_CONNECTED &, EVENT_INCOMING_DATA &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_SUBSCRIBE &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_SUBSCRIBED &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_PUBLISHED &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_ERROR &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_DISCONNECTED &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_INCOMING_DATA &);
 
     template <typename State, typename Event> 
     auto on_event(State &state, Event &event) {
