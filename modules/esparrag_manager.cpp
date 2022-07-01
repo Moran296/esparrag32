@@ -15,7 +15,7 @@ HttpServer &EsparragManager::GetHttp()
     return s_this->m_http;
 }
 
-EsparragManager::EsparragManager() //: m_interface(m_mqtt, m_http)
+EsparragManager::EsparragManager() 
 {
     ESPARRAG_ASSERT(s_this == nullptr);
     s_this = this;
@@ -42,7 +42,6 @@ void EsparragManager::initComponents()
     m_mqtt.Init();
     ESPARRAG_ASSERT(m_http.Init() == eResult::SUCCESS);
     m_wifi.Init();
-    //m_interface.RegisterHandlers();
 }
 
 void EsparragManager::handleEvents()

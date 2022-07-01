@@ -71,7 +71,7 @@ Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 
     m_timer = xTimerCreate("button", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
-    set_states(m_stateList, etl::size(m_stateList));
+    set_states(m_stateList, eStateId::NUM);
 
     m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
     res = m_gpi.EnableInterrupt(buttonISR, this);

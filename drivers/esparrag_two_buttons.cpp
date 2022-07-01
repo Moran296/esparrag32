@@ -118,7 +118,7 @@ TwoButtons::TwoButtons(Button &a, Button &b) : fsm(get_instance_count()), m_butt
 
     m_timer = xTimerCreate("two_buttons", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
-    set_states(m_stateList, etl::size(m_stateList));
+    set_states(m_stateList, eStateId::NUM);
     start();
 }
 
