@@ -4,7 +4,6 @@
 #include "esparrag_common.h"
 #include "esp_http_server.h"
 #include "esparrag_request.h"
-#include "esparrag_settings.h"
 #include "esparrag_response.h"
 #include "etl/delegate.h"
 #include "etl/string.h"
