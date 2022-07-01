@@ -47,26 +47,6 @@ void EsparragManager::handleEvents()
 {
     initComponents();
 
-    m_wifi.Connect("*****", "*****");
-    while(!m_wifi.IsInState<STATE_Connected>()) {
-
-        vTaskDelay(Seconds(10).toTicks());
-        ESPARRAG_LOG_INFO("connecting to wifi.......");
-    }
-
-    if (Mdns::Init() != true) {
-        ESPARRAG_LOG_ERROR("mdns init failed");
-    } else {
-        EsparragResult brokerIP = Mdns::FindBroker();
-        if (brokerIP.IsError()) {
-            ESPARRAG_LOG_ERROR("couldn't find broker");
-            PRINT_ERROR_RES(brokerIP);
-        } else {
-            m_mqtt.TryConnect(brokerIP.ok_or_assert());
-        }
-    }
-
-
     ESPARRAG_LOG_INFO("running manager");
     for (;;)
     {
