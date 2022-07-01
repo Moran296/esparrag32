@@ -57,7 +57,13 @@ void EsparragManager::handleEvents()
     if (Mdns::Init() != true) {
         ESPARRAG_LOG_ERROR("mdns init failed");
     } else {
-        m_mqtt.TryConnect(Mdns::FindBroker());
+        EsparragResult brokerIP = Mdns::FindBroker();
+        if (brokerIP.IsError()) {
+            ESPARRAG_LOG_ERROR("couldn't find broker");
+            PRINT_ERROR_RES(brokerIP);
+        } else {
+            m_mqtt.TryConnect(brokerIP.ok_or_assert());
+        }
     }
 
 

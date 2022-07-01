@@ -18,19 +18,19 @@ bool Mdns::Init()
     return true;
 }
 
-const char* Mdns::FindBroker()
+EsparragResult<const char*> Mdns::FindBroker()
 {
     mdns_result_t *results = nullptr;
     esp_err_t err = mdns_query_ptr(MQTT_SRV, MQTT_PROTO, 1500, 1, &results);
     if (err != ESP_OK)
     {
         ESPARRAG_LOG_ERROR("couldn't find broker. err %d", err);
-        return nullptr;
+        return eResult::ERROR_CONNECTION_FAILURE;
     }
     if (results == nullptr)
     {
         ESPARRAG_LOG_ERROR("couldn't find broker. no results");
-        return nullptr;
+        return eResult::ERROR_NOT_FOUND;
     }
 
     static char address[20]{};
