@@ -8,8 +8,9 @@ class Mdns
 {
 public:
     static bool Init();
+    static eResult AdvertiseMqtt();
+    static eResult AdvertiseESPNOW();
     static EsparragResult<const char*> FindBroker();
-
 };
 
 #endif

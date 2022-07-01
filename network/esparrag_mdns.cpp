@@ -2,6 +2,7 @@
 #include "mdns.h"
 #include "esparrag_log.h"
 #include "esparrag_manager.h"
+#include "esp_wifi.h"
 
 #define MQTT_SRV "_mqtt"
 #define MQTT_PROTO "_tcp"
@@ -15,8 +16,48 @@ bool Mdns::Init()
         return false;
     }
 
+    if (mdns_hostname_set(DEVICE_NAME) != ESP_OK)
+    {
+        ESPARRAG_LOG_ERROR("mdns hostname set failed");
+        return false;
+    }
+
     return true;
 }
+
+eResult Mdns::AdvertiseMqtt() {
+
+    if (mdns_service_add(MQTT_SRV, MQTT_PROTO, "_tcp", 1883, NULL, 0) != ESP_OK)
+    {
+        ESPARRAG_LOG_ERROR("mdns service add failed");
+        return eResult::ERROR_GENERAL;
+    }
+
+    return eResult::SUCCESS;
+}
+
+void macToString(uint8_t *mac, char *str)
+{
+    sprintf(str, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+eResult Mdns::AdvertiseESPNOW() {
+
+    uint8_t mac[6]{};
+    char stringedMac[18]{};
+    esp_wifi_get_mac(WIFI_IF_STA, mac);
+    macToString(mac, stringedMac);
+
+    mdns_txt_item_t address = {"mac", stringedMac};
+    if (mdns_service_add("_espnow", "_espnow", "_tcp", 4080, &address, 1) != ESP_OK)
+    {
+        ESPARRAG_LOG_ERROR("mdns service add failed");
+        return eResult::ERROR_GENERAL;
+    }
+
+    return eResult::SUCCESS;
+}
+
 
 EsparragResult<const char*> Mdns::FindBroker()
 {

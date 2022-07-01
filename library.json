@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "name": "etl",
-    "version": "https://github.com/ETLCPP/etl.git#2a01d36ea47a73af05"
+    "version": "https://github.com/ETLCPP/etl.git"
   },
   "build": {
     "unflags": [
@@ -18,7 +18,6 @@
       "-Inetwork/",
       "-Idrivers/",
       "-Icommon/",
-      "-Idatabase/",
       "-Os"
     ],
     "includeDir": ".",
@@ -27,7 +26,6 @@
       "-<*>",
       "+<modules>",
       "+<common>",
-      "+<database>",
       "+<drivers>",
       "+<network>"
     ]
