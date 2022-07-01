@@ -8,13 +8,7 @@ This library strives to minimum dynamic allocation and virtual inheritence as th
 The only dynamic allocation in the project is the one that is being used in esp-idf framework. The only virtual inheritance is from etlcpp (dependency). 
 
 ### core components
-1. **Database** - This is the heart of the system. A tuple class that holds heterogenous data, mainly system configurations and statuses. It is the main building stone for the library architecture. it allows:
-   * *Persistency*: Data can be declared persistent and so it will be saved in flash and load on system start.
-   * *PubSub*: Users can subscribe to certain data changes events in the database, and so respond to system changes and events 
-   * *Type safety*: The database is programmed with c++17 compile time programming concepts and so the database strives to create compile time errors if it is used wrongfully. This includes type safety in getters and setters.
-   * *Input validation*: Data in the database is validated at runtime. User can supply max, min values. 
-   * *Additional flexibility* - Currently the database supports POD types, cstrings (currently with default size), and any class with comparison operators and few needed functions. Supports factory reset.
-   - The only tradeoff is the size in flash is potentially big due to template metaprogramming creating invisible code..
+1. **Database** - This is deprecated and will be replaced by a settings module
 2. **NVS** - Non volatile storage (flash storage).
    * Each instance of this class is a namespace in flash.
    * Supports key value setters/getters.

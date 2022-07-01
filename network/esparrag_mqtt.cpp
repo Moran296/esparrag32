@@ -1,6 +1,7 @@
 #include "esparrag_mqtt.h"
 #include "esparrag_log.h"
 #include "esparrag_mdns.h"
+#include "lock.h"
 
 char MqttClient::m_payload[PAYLOAD_BUFFER_SIZE]{};
 char MqttClient::m_topic[TOPIC_BUFFER_SIZE]{};

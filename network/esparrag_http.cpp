@@ -3,6 +3,7 @@
 #include "etl/string_view.h"
 #include "etl/string.h"
 #include "esparrag_wifi.h"
+#include "esparrag_log.h"
 
 #define HTTP_REQUEST_CONTENT_MAX_SIZE 512
 #define DATA_FIELD "\"body\""
@@ -131,7 +132,6 @@ eResult HttpServer::Init()
 
     ESPARRAG_LOG_INFO("http server initialized");
 
-    runServer();
     return eResult::SUCCESS;
 }
 
@@ -205,7 +205,7 @@ eResult HttpServer::registerHandlers()
     return eResult::SUCCESS;
 }
 
-eResult HttpServer::runServer()
+eResult HttpServer::RunServer()
 {
     ESPARRAG_LOG_INFO("running http server");
     if (m_isRunning)

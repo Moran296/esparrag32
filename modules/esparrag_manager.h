@@ -3,7 +3,6 @@
 
 #include "esparrag_wifi.h"
 #include "esparrag_mqtt.h"
-#include "esparrag_database.h"
 #include "esparrag_http.h"
 #include "esparrag_common.h"
 #include "esparrag_time_units.h"
@@ -24,22 +23,17 @@ public:
 
     EsparragManager();
     void Run();
-    static void CommitConfig();
-    static void CommitStatus();
     static MqttClient &GetMqtt();
     static HttpServer &GetHttp();
 
 private:
     static void entryFunction(void *arg);
-    void setEvent(eEsparragEvents event);
     void initComponents();
-    void initName();
 
     void handleEvents();
     void handleCredentials();
 
     TaskHandle_t m_task;
-    EventGroupHandle_t m_eventGroup;
     Wifi m_wifi;
     MqttClient m_mqtt;
     HttpServer m_http;

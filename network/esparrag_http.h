@@ -2,7 +2,6 @@
 #define EPARRAG_HTTP_SERVER__
 
 #include "esparrag_common.h"
-#include "esparrag_database.h"
 #include "esp_http_server.h"
 #include "esparrag_request.h"
 #include "esparrag_settings.h"
@@ -40,7 +39,7 @@ private:
     httpd_handle_t m_handle = nullptr;
     httpd_config_t m_config{};
 
-    eResult runServer();
+    eResult RunServer();
     eResult stopServer();
     eResult registerHandlers();
     cJSON *parseHtmlBody(const char *body);

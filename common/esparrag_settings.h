@@ -1,11 +1,9 @@
-#ifndef APP_DATA_H__
-#define APP_DATA_H__
+#ifndef APP_SETTINGS_H__
+#define APP_SETTINGS_H__
 
 #include "etl/enum_type.h"
 #include "etl/string.h"
 #include "esparrag_common.h"
-#include "esparrag_data.h"
-#include "esparrag_database.h"
 
 struct eConfig
 {
@@ -68,17 +66,6 @@ enum eMqttState
 class Settings
 {
 public:
-    inline static Database Config{"config_db",
-                                  Data<eConfig::DEV_NAME, const char *>{"", false},
-                                  Data<eConfig::AP_PASSWORD, const char *>{"11112222"},
-                                  Data<eConfig::STA_SSID, const char *>{""},
-                                  Data<eConfig::STA_PASSWORD, const char *>{""}};
-
-    inline static Database Status{"status_db",
-                                  Data<eStatus::WIFI_STATE, uint8_t>{WIFI_OFFLINE, WIFI_NUM - 1, WIFI_OFFLINE, false},
-                                  Data<eStatus::MQTT_STATE, uint8_t>{MQTT_OFFLINE, MQTT_NUM - 1, MQTT_OFFLINE, false},
-                                  Data<eStatus::STA_IP, const char *>{"", false},
-                                  Data<eStatus::BROKER_IP, const char *>{"", false}};
 };
 
 #endif
