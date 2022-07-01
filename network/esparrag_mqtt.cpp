@@ -331,7 +331,7 @@ const char *MqttClient::constructFullTopic(const char *topic)
     ESPARRAG_ASSERT(topic[0] == '/');
 
     memset(buffer, 0, TOPIC_BUFFER_SIZE);
-    snprintf(buffer, TOPIC_BUFFER_SIZE, "/%s/%s", DEVICE_NAME, topic);
+    snprintf(buffer, TOPIC_BUFFER_SIZE, "/%s%s", DEVICE_NAME, topic);
 
     return buffer;
 }
