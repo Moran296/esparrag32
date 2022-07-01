@@ -1,63 +1,53 @@
 #include "esparrag_button.h"
 #include "etl/algorithm.h"
 
-// ========IDLE STATE============
-etl::fsm_state_id_t
-Button::IdleState::on_event(const PressEvent &event)
-{
-    return eStateId::PRESSED;
+// ================== STATE MACHINE =================
+
+void Button::on_entry(STATE_IDLE &state) {
+    ESPARRAG_LOG_INFO("entered %s", state.NAME);
+
 }
 
-etl::fsm_state_id_t
-Button::IdleState::on_event_unknown(const etl::imessage &event)
-{
-    return STATE_ID;
+void Button::on_entry(STATE_PRESSED &state) {
+    ESPARRAG_LOG_INFO("entered %s", state.NAME);
+
+    runPressCallback(m_pressCallbacks, ePressType::FAST_PRESS);
+
+    state.m_timeouts = ePressType::PRESS_TIMEOUT_1;
+    m_lastPressTime = esp_timer_get_time();
+    startTimer(state.m_timeouts);
 }
 
-// ========PRESSED STATE============
-etl::fsm_state_id_t
-Button::PressedState::on_enter_state()
-{
-    auto &button = get_fsm_context();
-    button.runPressCallback(button.m_pressCallbacks, ePressType::FAST_PRESS);
+using return_state_t = std::optional<ButtonStates>;
 
-    m_timeouts = ePressType::PRESS_TIMEOUT_1;
-    button.m_lastPressTime = esp_timer_get_time();
-    button.startTimer(ePressType(m_timeouts));
-    return STATE_ID;
+return_state_t Button::on_event(STATE_IDLE& state, EVENT_PRESS& event) {
+    ESPARRAG_LOG_DEBUG(" button %s - %s", state.NAME, event.NAME);
+
+    return STATE_PRESSED{};
 }
 
-etl::fsm_state_id_t
-Button::PressedState::on_event(const ReleaseEvent &event)
-{
-    auto &button = get_fsm_context();
-    button.stopTimer(true);
-    button.runReleaseCallback(button.m_releaseCallbacks);
-    return eStateId::IDLE;
+return_state_t Button::on_event(STATE_PRESSED& state, EVENT_RELEASE& event) {
+    ESPARRAG_LOG_DEBUG(" button %s - %s", state.NAME, event.NAME);
+
+    stopTimer(true);
+    runReleaseCallback(m_releaseCallbacks);
+    return STATE_IDLE{};
 }
 
-etl::fsm_state_id_t
-Button::PressedState::on_event(const TimerEvent &event)
-{
-    auto &button = get_fsm_context();
-    button.runPressCallback(button.m_pressCallbacks, ePressType(m_timeouts));
+return_state_t Button::on_event(STATE_PRESSED& state, EVENT_TIMER& event) {
+    ESPARRAG_LOG_DEBUG(" button %s - %s", state.NAME, event.NAME);
 
-    m_timeouts++;
-    button.startTimer(ePressType(m_timeouts));
-    return STATE_ID;
+    runPressCallback(m_pressCallbacks, state.m_timeouts);
+
+    state.m_timeouts = ePressType(state.m_timeouts.get_value() + 1);
+    startTimer(state.m_timeouts);
+    return std::nullopt;
 }
 
-etl::fsm_state_id_t
-Button::PressedState::on_event_unknown(const etl::imessage &event)
-{
-    m_timeouts = 0;
-    ets_printf("pressed unknown %d\n", (uint8_t)get_state_id());
-    return STATE_ID;
-}
 
 // ==========Button==============
 
-Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
+Button::Button(GPI &gpi) : m_gpi(gpi)
 {
     eResult res = m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
@@ -71,12 +61,11 @@ Button::Button(GPI &gpi) : fsm(get_instance_count()), m_gpi(gpi)
 
     m_timer = xTimerCreate("button", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
-    set_states(m_stateList, eStateId::NUM);
 
     m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
     res = m_gpi.EnableInterrupt(buttonISR, this);
     ESPARRAG_ASSERT(res == eResult::SUCCESS);
-    start();
+    Start(gpi.IsActive() ? ButtonStates{STATE_PRESSED{}} : ButtonStates{STATE_IDLE{}});
 }
 
 eResult Button::RegisterPress(const buttonCB &cb)
@@ -213,17 +202,17 @@ void IRAM_ATTR Button::buttonISR(void *arg)
     if (button->m_buttonState)
     {
         button->m_gpi.SetInterruptType(GPIO_INTR_LOW_LEVEL);
-        button->receive(PressEvent());
+        button->Dispatch(EVENT_PRESS{});
     }
     else
     {
         button->m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
-        button->receive(ReleaseEvent());
+        button->Dispatch(EVENT_RELEASE{});
     }
 }
 
 void Button::timerCB(xTimerHandle timer)
 {
     Button *button = reinterpret_cast<Button *>(pvTimerGetTimerID(timer));
-    button->receive(TimerEvent());
+    button->Dispatch(EVENT_TIMER{});
 }

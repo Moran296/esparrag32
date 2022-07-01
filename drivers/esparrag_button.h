@@ -7,44 +7,10 @@
 #include "esparrag_log.h"
 #include "esparrag_gpio.h"
 #include "etl/array.h"
-#include "etl/fsm.h"
 #include "etl/enum_type.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
-
-struct ButtonEvent
-{
-    enum enum_type
-    {
-        PRESS,
-        RELEASE,
-        TIMER_EVENT,
-        NUM
-    };
-};
-
-class PressEvent : public etl::message<ButtonEvent::PRESS>
-{
-};
-class ReleaseEvent : public etl::message<ButtonEvent::RELEASE>
-{
-};
-class TimerEvent : public etl::message<ButtonEvent::TIMER_EVENT>
-{
-};
-class InvalidEvent : public etl::message<ButtonEvent::NUM>
-{
-};
-
-struct eStateId
-{
-    enum enum_type
-    {
-        IDLE,
-        PRESSED,
-        NUM
-    };
-};
+#include "fsm_taskless.h"
 
 struct ePressType
 {
@@ -63,9 +29,34 @@ struct ePressType
     ETL_ENUM_DEFAULT(PRESS_NUM)
     ETL_END_ENUM_TYPE
 };
+struct STATE_IDLE {
+    static constexpr const char *NAME = "STATE_IDLE";
+};
 
-class Button : public etl::fsm,
-               public FSM_COUNT
+struct STATE_PRESSED {
+    static constexpr const char *NAME = "STATE_PRESSED";
+
+    ePressType m_timeouts{};
+};
+
+using ButtonStates = std::variant<STATE_IDLE, STATE_PRESSED>;
+
+struct EVENT_PRESS {
+    static constexpr const char *NAME = "EVENT_PRESS";
+}; 
+struct EVENT_RELEASE 
+{
+    static constexpr const char *NAME = "EVENT_RELEASE";
+};
+struct EVENT_TIMER 
+{
+    static constexpr const char *NAME = "EVENT_RELEASE";
+};
+
+using ButtonEvents = std::variant<EVENT_PRESS, EVENT_RELEASE, EVENT_TIMER>;
+
+
+class Button : public FsmTaskless<Button, ButtonStates, ButtonEvents>
 {
 public:
     friend class TwoButtons;
@@ -113,6 +104,27 @@ public:
     */
     eResult RegisterRelease(const buttonCB &cb);
 
+
+    void on_entry(STATE_IDLE &);
+    void on_entry(STATE_PRESSED &);
+
+    using return_state_t = std::optional<ButtonStates>;
+    
+    return_state_t on_event(STATE_IDLE&, EVENT_PRESS&);
+    return_state_t on_event(STATE_PRESSED&, EVENT_RELEASE&);
+    return_state_t on_event(STATE_PRESSED&, EVENT_TIMER&);
+
+    
+    template <class STATE, class EVENT>
+    return_state_t on_event(STATE &, EVENT &)
+    {
+        ESPARRAG_LOG_DEBUG("invalid event - %s - %s", STATE::NAME, EVENT::NAME);
+        return std::nullopt;
+    }
+
+
+
+
 private:
     GPI &m_gpi;
     callback_list_t m_pressCallbacks{};
@@ -131,34 +143,6 @@ private:
 
     static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
-
-    etl::ifsm_state *m_stateList[eStateId::NUM]{&m_idle, &m_pressed};
-
-    //Button states
-    class IdleState : public etl::fsm_state<Button, IdleState, eStateId::IDLE,
-                                            PressEvent>
-    {
-    public:
-        etl::fsm_state_id_t on_event(const PressEvent &event);
-        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-    };
-
-    class PressedState : public etl::fsm_state<Button, PressedState, eStateId::PRESSED,
-                                               ReleaseEvent,
-                                               TimerEvent>
-    {
-    public:
-        etl::fsm_state_id_t on_enter_state();
-        etl::fsm_state_id_t on_event(const ReleaseEvent &event);
-        etl::fsm_state_id_t on_event(const TimerEvent &event);
-        etl::fsm_state_id_t on_event_unknown(const etl::imessage &event);
-
-    private:
-        int m_timeouts = 0;
-    };
-
-    IdleState m_idle;
-    PressedState m_pressed;
 };
 
 #endif
