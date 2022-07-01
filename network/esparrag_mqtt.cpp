@@ -1,7 +1,12 @@
 #include "esparrag_mqtt.h"
 #include "esparrag_log.h"
+#include "esparrag_mdns.h"
 
 char MqttClient::m_payload[PAYLOAD_BUFFER_SIZE]{};
+char MqttClient::m_topic[TOPIC_BUFFER_SIZE]{};
+char EVENT_CONNECT::m_brokerIp[EVENT_CONNECT::MQTT_BROKER_IP_SIZE]{};
+
+//===============================EVENT HANDLER ==================================================
 
 void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
@@ -11,37 +16,37 @@ void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_
     switch ((esp_mqtt_event_id_t)event_id)
     {
     case MQTT_EVENT_BEFORE_CONNECT:
-        ESPARRAG_LOG_INFO("MQTT_EVENT_BEFORE_CONNECT");
-        client->updateCloudState(eMqttState::MQTT_CONNECTING);
+        client->Dispatch(EVENT_BEFORE_CONNECT{});
         break;
     case MQTT_EVENT_CONNECTED:
-        ESPARRAG_LOG_INFO("MQTT_EVENT_CONNECTED");
-        client->updateCloudState(eMqttState::MQTT_CONNECTED);
-        client->m_connected = true;
-        client->reSubscribe();
-        client->identify();
+        client->Dispatch(EVENT_CONNECTED{});
         break;
     case MQTT_EVENT_DISCONNECTED:
-        ESPARRAG_LOG_INFO("MQTT_EVENT_DISCONNECTED");
-        client->m_connected = false;
-        client->updateCloudState(eMqttState::MQTT_OFFLINE);
+        client->Dispatch(EVENT_DISCONNECTED{});
         break;
     case MQTT_EVENT_SUBSCRIBED:
-        client->updateCloudState(eMqttState::MQTT_SUBSCRIBED);
         ESPARRAG_LOG_INFO("MQTT_EVENT_SUBSCRIBED, msg_id=%d", event->msg_id);
+        client->Dispatch(EVENT_SUBSCRIBED{});
         break;
     case MQTT_EVENT_UNSUBSCRIBED:
         ESPARRAG_LOG_INFO("MQTT_EVENT_UNSUBSCRIBED, msg_id=%d", event->msg_id);
         break;
     case MQTT_EVENT_PUBLISHED:
-        ESPARRAG_LOG_INFO("MQTT_EVENT_PUBLISHED, msg_id=%d", event->msg_id);
+        client->Dispatch(EVENT_PUBLISHED{});
         break;
     case MQTT_EVENT_DATA:
-        ESPARRAG_LOG_INFO("MQTT_EVENT_DATA");
-        client->handleData(event);
+        {
+            Lock lock(client->m_dataMutex);
+            memset(m_topic, 0, sizeof(m_topic));
+            memset(m_payload, 0, sizeof(m_payload));
+            strlcpy(m_topic, event->topic, event->topic_len + 1);
+            strlcpy(m_payload, event->data, event->data_len + 1);
+        } 
+
+        client->Dispatch(EVENT_INCOMING_DATA{});
         break;
     case MQTT_EVENT_ERROR:
-        ESPARRAG_LOG_INFO("MQTT_EVENT_ERROR");
+        client->Dispatch(EVENT_ERROR{});
         break;
     default:
         ESPARRAG_ASSERT(false);
@@ -49,29 +54,25 @@ void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_
     }
 }
 
-void MqttClient::identify()
-{
-    ESPARRAG_ASSERT(m_connected);
-    cJSON *json = cJSON_CreateObject();
-    cJSON_AddStringToObject(json, "name", DEVICE_NAME);
-    cJSON_AddStringToObject(json, "description", DEVICE_DESC);
-    ESPARRAG_ASSERT(Publish(IDENTIFICATION_TOPIC, json) == eResult::SUCCESS);
-    cJSON_Delete(json);
-}
+//===============================================================================================
+//===============================PUBLIC METHODS ==================================================
+//===============================================================================================
+
+MqttClient::MqttClient() : FsmTask(8000, 3, "mqttTask@esparrag") {}
 
 void MqttClient::Init()
 {
-    auto changeCB = DB_PARAM_CALLBACK(Settings::Status)::create<MqttClient, &MqttClient::init>(*this);
-    Settings::Status.Subscribe<eStatus::BROKER_IP>(changeCB);
+    m_dataMutex = xSemaphoreCreateMutex();
+    Start(STATE_DISABLED{});
 }
 
 void MqttClient::On(const char *topic, mqtt_handler_callback callback)
 {
     ESPARRAG_ASSERT(m_handlers.size() != m_handlers.capacity());
-    ESPARRAG_ASSERT(callback.is_valid());
+    ESPARRAG_ASSERT(callback);
     mqtt_event_handler_t handler{.cb = callback, .topic = constructFullTopic(topic), .isSubscribed = false};
 
-    if (m_connected)
+    if (IsInState<STATE_CONNECTED>())
     {
         if (subscribe(constructFullTopic(topic)))
         {
@@ -82,60 +83,9 @@ void MqttClient::On(const char *topic, mqtt_handler_callback callback)
     m_handlers.push_back(handler);
 }
 
-void MqttClient::handleData(esp_mqtt_event_t *event)
+eResult MqttClient::Publish(const char *topic, const char *msg)
 {
-    static char topic[TOPIC_BUFFER_SIZE];
-    memset(topic, 0, sizeof(topic));
-    memset(m_payload, 0, sizeof(m_payload));
-    strlcpy(topic, event->topic, event->topic_len + 1);
-    strlcpy(m_payload, event->data, event->data_len + 1);
-
-    if (strncmp(topic, IDENTIFICATION_REQUEST, strlen(topic)) == 0)
-    {
-        identify();
-        return;
-    }
-
-    mqtt_event_handler_t *handler = findHandler(topic);
-    if (!handler)
-    {
-        ESPARRAG_LOG_ERROR("no handler for topic %s", topic);
-        return;
-    }
-
-    // --handle request
-    cJSON *jsonPayload = cJSON_Parse(m_payload);
-    Request request(jsonPayload, topic);
-    Response response;
-    handler->cb(request, response);
-
-    // --prepare response
-    ESPARRAG_ASSERT(response.m_format == Response::FORMAT::JSON)
-
-    cJSON *uuid = nullptr;
-    if (request.m_content)
-    {
-        uuid = cJSON_GetObjectItem(request.m_content, "uuid");
-    }
-
-    if (uuid && cJSON_IsString(uuid))
-    {
-        ESPARRAG_LOG_INFO("there is uuid here");
-        cJSON_AddItemReferenceToObject(response.m_json, "uuid", uuid);
-    }
-    else
-        ESPARRAG_LOG_ERROR("missing uuid");
-
-    strlcat(topic, "/response", TOPIC_BUFFER_SIZE);
-    memset(m_payload, 0, sizeof(m_payload));
-    bool printed = cJSON_PrintPreallocated(response.m_json, m_payload, PAYLOAD_BUFFER_SIZE, false);
-    if (!printed)
-    {
-        ESPARRAG_LOG_ERROR("mqtt publish buffer too small");
-        return;
-    }
-
-    publish(topic, m_payload);
+    return publish(constructFullTopic(topic), msg);
 }
 
 eResult MqttClient::Publish(const char *topic, cJSON *msg)
@@ -151,16 +101,150 @@ eResult MqttClient::Publish(const char *topic, cJSON *msg)
     return publish(constructFullTopic(topic), m_payload);
 }
 
-eResult MqttClient::Publish(const char *topic, const char *msg)
+eResult MqttClient::TryConnect(const char* brokerIp) {
+
+    if (IsInState<STATE_CONNECTING>())
+    {
+        ESPARRAG_LOG_INFO("mqtt already connecting");
+        return eResult::SUCCESS;
+    }
+
+    if (IsInState<STATE_CONNECTED>())
+    {
+        ESPARRAG_LOG_INFO("mqtt already connected");
+        return eResult::SUCCESS;
+    }
+
+    if (!brokerIp || strlen(brokerIp) == 0)
+    {
+        ESPARRAG_LOG_ERROR("mqtt ip not set");
+        return eResult::ERROR_INVALID_STATE;
+    }
+
+
+    Dispatch(EVENT_CONNECT(brokerIp));
+    return eResult::SUCCESS;
+}
+
+
+//================================ENTRY FUNCTIONS ================================================
+
+void MqttClient::on_entry(STATE_DISABLED& state) {
+    ESPARRAG_LOG_INFO("entered %s", state.NAME);
+
+}
+void MqttClient::on_entry(STATE_CONNECTING& state) {
+    ESPARRAG_LOG_INFO("entered %s", state.NAME);
+
+}
+void MqttClient::on_entry(STATE_CONNECTED& state) {
+    ESPARRAG_LOG_INFO("entered %s", state.NAME);
+
+    reSubscribe();
+}
+
+
+//===============================================================================================
+//================================ STATE MACHINE ================================================
+//===============================================================================================
+
+using return_state_t = MqttClient::return_state_t;
+
+// STATE_DISABLED
+
+return_state_t MqttClient::on_event(STATE_DISABLED &state, EVENT_CONNECT &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return connect(EVENT_CONNECT::m_brokerIp) == true ? return_state_t {STATE_CONNECTING{}} : std::nullopt;
+}
+
+return_state_t MqttClient::on_event(STATE_DISABLED &state, EVENT_BEFORE_CONNECT &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return STATE_CONNECTING{};
+}
+    
+// STATE_DISABLED
+
+return_state_t MqttClient::on_event(STATE_CONNECTING &state, EVENT_CONNECTED &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return STATE_CONNECTED{};
+}
+
+return_state_t MqttClient::on_event(STATE_CONNECTING &state, EVENT_DISCONNECTED &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return std::nullopt;
+}
+
+return_state_t MqttClient::on_event(STATE_CONNECTING &state, EVENT_ERROR &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return std::nullopt;
+}
+
+// STATE_CONNECTED
+
+return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_SUBSCRIBE &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return std::nullopt;
+}
+
+return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_SUBSCRIBED &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return std::nullopt;
+}
+
+return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_PUBLISHED &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return std::nullopt;
+}
+
+return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_ERROR &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return STATE_CONNECTING{};
+}
+
+return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_DISCONNECTED &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+
+    return STATE_CONNECTING{};
+}
+
+return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_INCOMING_DATA &event) {
+    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    handleData();
+
+    return std::nullopt;
+}
+
+
+//===============================================================================================
+
+void MqttClient::handleData()
 {
-    return publish(constructFullTopic(topic), msg);
+    Lock lock(m_dataMutex);
+    mqtt_event_handler_t *handler = findHandler(m_topic);
+    if (!handler)
+    {
+        ESPARRAG_LOG_ERROR("no handler for topic %s", m_topic);
+        return;
+    }
+
+    // --handle request
+    cJSON *jsonPayload = cJSON_Parse(m_payload);
+    Request request(jsonPayload, m_topic);
+    Response response;
+    handler->cb(request, response);
 }
 
 eResult MqttClient::publish(const char *topic, const char *payload)
 {
-    if (!m_connected)
-        return eResult::ERROR_INVALID_STATE;
-
     int err = esp_mqtt_client_publish(m_client, topic, payload, strlen(payload), 0, false);
     if (err == -1)
     {
@@ -185,67 +269,49 @@ MqttClient::mqtt_event_handler_t *MqttClient::findHandler(const char *topic)
     return nullptr;
 }
 
-void MqttClient::init(DB_PARAM_DIRTY_LIST(Settings::Status) list)
+bool MqttClient::connect(const char* brokerIP)
 {
     constexpr int MQTT_PORT = 1883;
     esp_mqtt_client_config_t config{};
-    const char *mqttIP = nullptr;
     char mqttHost[50]{};
 
     if (m_client != nullptr)
     {
-        return;
+        return false;
     }
 
-    Settings::Status.Get<eStatus::BROKER_IP>(mqttIP);
-    if (!mqttIP)
-    {
-        return;
-    }
-
-    if (strlen(mqttIP) == 0)
-    {
-        return;
-    }
-
-    snprintf(mqttHost, sizeof(mqttHost), "mqtt://%s:%d", mqttIP, MQTT_PORT);
-    const char *name = nullptr;
-    Settings::Config.Get<eConfig::DEV_NAME>(name);
+    snprintf(mqttHost, sizeof(mqttHost), "mqtt://%s:%d", brokerIP, MQTT_PORT);
+    ESPARRAG_LOG_INFO("trying to connect to %s", mqttHost);
 
     config.port = MQTT_PORT;
     config.uri = mqttHost;
     config.host = mqttHost;
-    config.client_id = name;
-    config.username = name;
+    config.client_id = DEVICE_NAME;
+    config.username = DEVICE_NAME;
 
     m_client = esp_mqtt_client_init(&config);
     if (!m_client)
     {
         ESPARRAG_LOG_ERROR("could not create mqtt client");
-        return;
+        return false;
     }
 
     esp_err_t err = esp_mqtt_client_register_event(m_client, MQTT_EVENT_ANY, mqttEventHandler, this);
     if (err != ESP_OK)
     {
         ESPARRAG_LOG_ERROR("could not register event handler");
-        return;
+        return false;
     }
 
     err = esp_mqtt_client_start(m_client);
     if (err != ESP_OK)
     {
         ESPARRAG_LOG_ERROR("could not start mqtt");
-        return;
+        return false;
     }
 
     ESPARRAG_LOG_INFO("mqtt initiated");
-}
-
-void MqttClient::updateCloudState(eMqttState state)
-{
-    if (Settings::Status.Set<eStatus::MQTT_STATE, uint8_t>(state))
-        Settings::Status.Commit();
+    return true;
 }
 
 const char *MqttClient::constructFullTopic(const char *topic)
@@ -256,14 +322,14 @@ const char *MqttClient::constructFullTopic(const char *topic)
     ESPARRAG_ASSERT(topic[0] == '/');
 
     memset(buffer, 0, TOPIC_BUFFER_SIZE);
-    snprintf(buffer, TOPIC_BUFFER_SIZE, "/%s%s", DEVICE_NAME, topic);
+    snprintf(buffer, TOPIC_BUFFER_SIZE, "/%s/%s", DEVICE_NAME, topic);
 
     return buffer;
 }
 
 bool MqttClient::subscribe(const char *topic)
 {
-    ESPARRAG_ASSERT(m_connected);
+    ESPARRAG_ASSERT(IsInState<STATE_CONNECTED>());
     esp_err_t err = esp_mqtt_client_subscribe(m_client, topic, 0);
     if (err == -1)
     {
@@ -276,9 +342,8 @@ bool MqttClient::subscribe(const char *topic)
 
 void MqttClient::reSubscribe()
 {
-    ESPARRAG_ASSERT(m_connected);
+    ESPARRAG_ASSERT(IsInState<STATE_CONNECTED>());
 
-    subscribe(IDENTIFICATION_REQUEST);
     for (size_t i = 0; i < m_handlers.size(); i++)
     {
         m_handlers[i].isSubscribed =
