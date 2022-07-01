@@ -52,8 +52,6 @@ void Wifi::eventHandler(void *event_handler_arg,
 
 Wifi::Wifi()
 {
-    Init();
-    Start();
 }
 
 void Wifi::Init()
@@ -98,6 +96,7 @@ void Wifi::Init()
         return;
     }
 
+    Start();
     return;
 }
 
