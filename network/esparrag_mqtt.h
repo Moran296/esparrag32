@@ -6,7 +6,6 @@
 #include <functional>
 #include "etl/vector.h"
 #include "esparrag_request.h"
-#include "esparrag_response.h"
 #include "cJSON.h"
 #include "fsm_task.h"
 
@@ -77,7 +76,7 @@ using MQTTEvent = std::variant<EVENT_BEFORE_CONNECT,
 class MqttClient : public FsmTask<MqttClient, MQTTStates, MQTTEvent>
 {
 public:
-    using mqtt_handler_callback = std::function<void(Request &, Response &)>;
+    using mqtt_handler_callback = std::function<void(const char* topic, cJSON* payload)>;
 
     static constexpr int TOPIC_BUFFER_SIZE = 100;
     static constexpr int PAYLOAD_BUFFER_SIZE = 4096;

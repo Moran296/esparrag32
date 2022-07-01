@@ -238,9 +238,15 @@ void MqttClient::handleData()
 
     // --handle request
     cJSON *jsonPayload = cJSON_Parse(m_payload);
-    Request request(jsonPayload, m_topic);
-    Response response;
-    handler->cb(request, response);
+    if (jsonPayload == nullptr)
+    {
+        ESPARRAG_LOG_WARNING("mqtt payload is not a valid json, reformatting");
+        jsonPayload = cJSON_CreateObject();
+        cJSON_AddStringToObject(jsonPayload, "payload", m_payload);
+    }
+
+
+    handler->cb(m_topic, jsonPayload);
 }
 
 eResult MqttClient::publish(const char *topic, const char *payload)

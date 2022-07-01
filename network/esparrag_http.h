@@ -46,7 +46,6 @@ private:
     cJSON *parseHtmlBody(const char *body);
     http_event_handler_t *findHandler(httpd_req_t *esp_request);
     void sendResponse(httpd_req_t *esp_request, Response &response);
-    void dbStatusChange(DB_PARAM_DIRTY_LIST(Settings::Status) list);
 
     static esp_err_t requestHandler(httpd_req_t *esp_request);
     static esp_err_t post_handler(httpd_req_t *req);

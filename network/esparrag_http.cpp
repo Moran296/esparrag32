@@ -126,21 +126,12 @@ void HttpServer::sendResponse(httpd_req_t *esp_request, Response &response)
 
 eResult HttpServer::Init()
 {
-    auto changeCB = DB_PARAM_CALLBACK(Settings::Status)::create<HttpServer, &HttpServer::dbStatusChange>(*this);
-    Settings::Status.Subscribe<eStatus::WIFI_STATE>(changeCB);
-
     m_config = HTTPD_DEFAULT_CONFIG();
     m_config.uri_match_fn = httpd_uri_match_wildcard;
 
     ESPARRAG_LOG_INFO("http server initialized");
 
-    uint8_t mode = 0;
-    Settings::Status.Get<eStatus::WIFI_STATE>(mode);
-    if (mode != WIFI_OFFLINE && !m_isRunning)
-    {
-        runServer();
-    }
-
+    runServer();
     return eResult::SUCCESS;
 }
 
@@ -261,14 +252,4 @@ eResult HttpServer::stopServer()
 
     m_isRunning = false;
     return eResult::SUCCESS;
-}
-
-void HttpServer::dbStatusChange(DB_PARAM_DIRTY_LIST(Settings::Status) list)
-{
-    uint8_t mode = 0;
-    Settings::Status.Get<eStatus::WIFI_STATE>(mode);
-    if (mode != WIFI_OFFLINE && !m_isRunning)
-    {
-        runServer();
-    }
 }

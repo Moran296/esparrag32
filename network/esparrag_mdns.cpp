@@ -35,7 +35,7 @@ const char* Mdns::FindBroker()
 
     static char address[20]{};
     snprintf(address, 20, IPSTR, IP2STR(&(results->addr->addr.u_addr.ip4)));
-    ESPARRAG_LOG_ERROR("broker ip %s", address);
-    Settings::Status.SetAndCommit<eStatus::BROKER_IP>(address);
+    ESPARRAG_LOG_INFO("broker ip %s", address);
+
     return address;
 }
