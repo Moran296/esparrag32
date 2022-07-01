@@ -8,11 +8,11 @@
 class Mdns
 {
 public:
-    static void Init();
-    static void FindBroker();
+    static bool Init();
+    static const char* FindBroker();
 
 private:
-    static void init();
+
 };
 
 #endif
