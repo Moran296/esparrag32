@@ -3,14 +3,20 @@
 
 // ================== STATE MACHINE =================
 
-void Button::on_entry(STATE_IDLE &state) {
-    ESPARRAG_LOG_INFO("entered %s", state.NAME);
+using return_state_t = std::optional<ButtonStates>;
 
+//============================BUTTON IDLE ======================================
+
+void Button::on_entry(STATE_IDLE &state) {
 }
 
-void Button::on_entry(STATE_PRESSED &state) {
-    ESPARRAG_LOG_INFO("entered %s", state.NAME);
+return_state_t Button::on_event(STATE_IDLE& state, EVENT_PRESS& event) {
+    return STATE_PRESSED{};
+}
 
+//============================BUTTON PRESSEED ======================================
+
+void Button::on_entry(STATE_PRESSED &state) {
     runPressCallback(m_pressCallbacks, ePressType::FAST_PRESS);
 
     state.m_timeouts = ePressType::PRESS_TIMEOUT_1;
@@ -18,25 +24,13 @@ void Button::on_entry(STATE_PRESSED &state) {
     startTimer(state.m_timeouts);
 }
 
-using return_state_t = std::optional<ButtonStates>;
-
-return_state_t Button::on_event(STATE_IDLE& state, EVENT_PRESS& event) {
-    ESPARRAG_LOG_DEBUG(" button %s - %s", state.NAME, event.NAME);
-
-    return STATE_PRESSED{};
-}
-
 return_state_t Button::on_event(STATE_PRESSED& state, EVENT_RELEASE& event) {
-    ESPARRAG_LOG_DEBUG(" button %s - %s", state.NAME, event.NAME);
-
     stopTimer(true);
     runReleaseCallback(m_releaseCallbacks);
     return STATE_IDLE{};
 }
 
 return_state_t Button::on_event(STATE_PRESSED& state, EVENT_TIMER& event) {
-    ESPARRAG_LOG_DEBUG(" button %s - %s", state.NAME, event.NAME);
-
     runPressCallback(m_pressCallbacks, state.m_timeouts);
 
     state.m_timeouts = ePressType(state.m_timeouts.get_value() + 1);
@@ -47,25 +41,21 @@ return_state_t Button::on_event(STATE_PRESSED& state, EVENT_TIMER& event) {
 
 // ==========Button==============
 
-Button::Button(GPI &gpi) : m_gpi(gpi)
+Button::Button(GPI &gpi) : m_gpi(gpi),
+                           m_realAnyEdge(gpi, MilliSeconds(30)) 
 {
-    eResult res = m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
-    ESPARRAG_ASSERT(res == eResult::SUCCESS);
-
-    m_buttonState = m_gpi.IsActive();
-    if (m_buttonState)
-    {
-        ESPARRAG_LOG_ERROR("button state on, on startup");
-        ESPARRAG_ASSERT(m_buttonState == false);
-    }
-
     m_timer = xTimerCreate("button", 100, pdFALSE, this, timerCB);
     ESPARRAG_ASSERT(m_timer);
 
-    m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
-    res = m_gpi.EnableInterrupt(buttonISR, this);
-    ESPARRAG_ASSERT(res == eResult::SUCCESS);
     Start(gpi.IsActive() ? ButtonStates{STATE_PRESSED{}} : ButtonStates{STATE_IDLE{}});
+
+    m_realAnyEdge.RegisterCallback([this](bool isActive) {
+        if (isActive) {
+            this->Dispatch(EVENT_PRESS{});
+        } else {
+            this->Dispatch(EVENT_RELEASE{});
+        }
+    });
 }
 
 eResult Button::RegisterPress(const buttonCB &cb)
@@ -108,6 +98,7 @@ eResult Button::registerEvent(const buttonCB &cb, callback_list_t &cb_list)
         if (cb_list[i].cb_time.value() == 0)
         {
             //we found an empty place
+            ESPARRAG_LOG_INFO("event written as long press");
             return cb_sorted_inserter(i);
         }
 
@@ -139,12 +130,6 @@ void Button::runPressCallback(callback_list_t &cb_list, ePressType press)
 
 void Button::runReleaseCallback(callback_list_t &cb_list)
 {
-    if (m_ignoreReleaseCallback)
-    {
-        m_ignoreReleaseCallback = false;
-        return;
-    }
-
     ESPARRAG_ASSERT(esp_timer_get_time() > m_lastPressTime.value())
     MicroSeconds timePassedSincePress = MicroSeconds(esp_timer_get_time()) - m_lastPressTime;
 
@@ -190,25 +175,6 @@ void Button::startTimer(ePressType timeout)
     xTimerChangePeriodFromISR(m_timer, ms.toTicks(), &higherPriorityExists);
     xTimerStartFromISR(m_timer, &higherPriorityExists);
     YIELD_FROM_ISR_IF(higherPriorityExists);
-}
-
-void IRAM_ATTR Button::buttonISR(void *arg)
-{
-    Button *button = reinterpret_cast<Button *>(arg);
-    if (!button->m_sampler.IsValidNow())
-        return;
-
-    button->m_buttonState = !button->m_buttonState;
-    if (button->m_buttonState)
-    {
-        button->m_gpi.SetInterruptType(GPIO_INTR_LOW_LEVEL);
-        button->Dispatch(EVENT_PRESS{});
-    }
-    else
-    {
-        button->m_gpi.SetInterruptType(GPIO_INTR_HIGH_LEVEL);
-        button->Dispatch(EVENT_RELEASE{});
-    }
 }
 
 void Button::timerCB(xTimerHandle timer)

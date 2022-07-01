@@ -84,8 +84,7 @@ GPI::GPI(int pin,
                                     active_state,
                                     pullup,
                                     pulldown)
-{
-}
+{ }
 
 GPI::operator bool() const
 {
@@ -96,9 +95,15 @@ bool GPI::IsActive() const
     return 0 != gpio_get_level(m_pin);
 }
 
-#include "esp_intr_alloc.h"
+bool GPI::IsHigh() const {
+    return gpio_get_level(m_pin);
+}
 
-eResult GPI::EnableInterrupt(isr_func_t isrEventHandler, void *arg)
+#include "esp_intr_alloc.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+eResult GPI::RegisterISR(isr_func_t isrEventHandler, void *arg)
 {
     ESPARRAG_ASSERT(m_config.intr_type != GPIO_INTR_DISABLE);
     ESPARRAG_ASSERT(isrEventHandler != nullptr);
@@ -127,16 +132,25 @@ eResult GPI::EnableInterrupt(isr_func_t isrEventHandler, void *arg)
     return eResult::SUCCESS;
 }
 
-eResult GPI::DisableInterrupt()
+eResult GPI::RemoveInterrupt()
 {
     esp_err_t res = gpio_isr_handler_remove(m_pin);
     if (res != ESP_OK)
     {
-        ESPARRAG_LOG_ERROR("disable interrupt failed, err %d", res);
+        ESPARRAG_LOG_ERROR("remove interrupt failed, err %d", res);
         return eResult::ERROR_INVALID_STATE;
     }
 
     return eResult::SUCCESS;
+}
+
+void GPI::DisableInterrupt()
+{
+    ESPARRAG_ASSERT(gpio_intr_disable(m_pin) == ESP_OK);
+}
+void GPI::EnableInterrupt()
+{
+    ESPARRAG_ASSERT(gpio_intr_enable(m_pin) == ESP_OK);
 }
 
 eResult GPI::SetInterruptType(gpio_int_type_t type)

@@ -2,7 +2,7 @@
 #define ESPARRAG_BUTTON_H__
 
 #include "esparrag_common.h"
-#include "debouncer.h"
+#include "real_any_edge.h"
 #include "esparrag_time_units.h"
 #include "esparrag_log.h"
 #include "esparrag_gpio.h"
@@ -76,9 +76,6 @@ public:
 
     /*
         CTOR-
-        Note: gpi must be in inactive state at ctor time (active state on startup is not implemented)
-        Note: gpi interrupt type must be GPIO_INTR_ANYEDGE
-        Note: above conditions are asserted in ctor
     */
     Button(GPI &gpi);
     /*
@@ -118,7 +115,7 @@ public:
     template <class STATE, class EVENT>
     return_state_t on_event(STATE &, EVENT &)
     {
-        ESPARRAG_LOG_DEBUG("invalid event - %s - %s", STATE::NAME, EVENT::NAME);
+        ets_printf("invalid event - %s - %s \n", STATE::NAME, EVENT::NAME);
         return std::nullopt;
     }
 
@@ -127,13 +124,11 @@ public:
 
 private:
     GPI &m_gpi;
+    RealAnyEdge m_realAnyEdge;
     callback_list_t m_pressCallbacks{};
     callback_list_t m_releaseCallbacks{};
     xTimerHandle m_timer{};
-    bool m_buttonState = false;
-    bool m_ignoreReleaseCallback = false;
     MicroSeconds m_lastPressTime{};
-    Debouncer m_sampler{BUTTON_DEBOUNCE_TIME_uS};
 
     void runPressCallback(callback_list_t &cb_list, ePressType press);
     void runReleaseCallback(callback_list_t &cb_list);
@@ -141,7 +136,6 @@ private:
     void startTimer(ePressType timeout);
     eResult registerEvent(const buttonCB &cb, callback_list_t &cb_list);
 
-    static void buttonISR(void *arg);
     static void timerCB(TimerHandle_t timer);
 };
 
