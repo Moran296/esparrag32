@@ -12,8 +12,8 @@ class Blinker
 public:
     static constexpr int FOREVER = -1;
     Blinker(GPO &gpo, MilliSeconds on, MilliSeconds off, int times = FOREVER);
-    eResult Start(bool fromISR = false);
-    eResult Stop(bool fromISR = false);
+    void Start(bool end_level);
+    void Stop(bool end_level);
 
 private:
     GPO &m_gpo;
@@ -24,6 +24,7 @@ private:
     int m_blinkTimes{};
     int m_alreadyBlinkedTimes{};
     bool m_state{};
+    bool m_end_level{};
 
     void init();
     static void timerCB(TimerHandle_t xTimer);

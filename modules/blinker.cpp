@@ -10,60 +10,19 @@ Blinker::Blinker(GPO &gpo, MilliSeconds on, MilliSeconds off, int times) : m_gpo
     ESPARRAG_ASSERT(m_timer);
 }
 
-eResult Blinker::Start(bool fromISR)
+void Blinker::Start(bool end_level)
 {
-    m_gpo--;
-
-    if (!fromISR)
-    {
-        BaseType_t success = xTimerStart(m_timer, DEFAULT_FREERTOS_TIMEOUT);
-        if (success != pdPASS)
-        {
-            ESPARRAG_LOG_ERROR("start blinker timer failed");
-            return eResult::ERROR_INVALID_STATE;
-        }
-    }
-    else
-    {
-        BaseType_t higherPriority = pdFALSE;
-        BaseType_t success = xTimerStartFromISR(m_timer, &higherPriority);
-        if (success != pdPASS)
-            return eResult::ERROR_INVALID_STATE;
-
-        YIELD_FROM_ISR_IF(higherPriority);
-    }
-
-    return eResult::SUCCESS;
+    m_end_level = end_level;
+    BaseType_t success = xTimerStart(m_timer, DEFAULT_FREERTOS_TIMEOUT);
+    ESPARRAG_ASSERT(success == pdPASS);
 }
 
-eResult Blinker::Stop(bool fromISR)
+void Blinker::Stop(bool end_level)
 {
-    if (m_state)
-    {
-        m_state = false;
-        m_gpo--;
-    }
+    BaseType_t success = xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
+    ESPARRAG_ASSERT(success == pdPASS);
 
-    if (!fromISR)
-    {
-        BaseType_t success = xTimerStop(m_timer, DEFAULT_FREERTOS_TIMEOUT);
-        if (success != pdPASS)
-        {
-            ESPARRAG_LOG_ERROR("start blinker timer failed");
-            return eResult::ERROR_INVALID_STATE;
-        }
-    }
-    else
-    {
-        BaseType_t higherPriority = pdFALSE;
-        BaseType_t success = xTimerStopFromISR(m_timer, &higherPriority);
-        if (success != pdPASS)
-            return eResult::ERROR_INVALID_STATE;
-
-        YIELD_FROM_ISR_IF(higherPriority);
-    }
-
-    return eResult::SUCCESS;
+    m_gpo.Set(end_level);
 }
 
 void Blinker::timerCB(TimerHandle_t xTimer)
@@ -79,12 +38,15 @@ void Blinker::blink()
     if (!m_state)
         m_alreadyBlinkedTimes++;
 
+    //Finished blinking
     if (m_blinkTimes != FOREVER && m_alreadyBlinkedTimes >= m_blinkTimes)
     {
         m_alreadyBlinkedTimes = 0;
+        m_gpo.Set(m_end_level);
         return;
     }
 
+    // Set next blink
     if (m_on != m_off)
     {
         TickType_t newPeriod = m_state ? m_off.toTicks() : m_on.toTicks();
