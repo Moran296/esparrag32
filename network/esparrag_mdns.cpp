@@ -1,7 +1,6 @@
 #include "esparrag_mdns.h"
 #include "mdns.h"
 #include "esparrag_log.h"
-#include "esparrag_manager.h"
 #include "esp_wifi.h"
 
 #define MQTT_SRV "_mqtt"
