@@ -1,5 +1,4 @@
 #include "esparrag_wifi.h"
-#include "esp_wifi.h"
 #include <cstring>
 #include <cstdlib>
 #include "esparrag_log.h"
@@ -28,9 +27,11 @@ void Wifi::eventHandler(void *event_handler_arg,
                 break;
 
             case WIFI_EVENT_STA_DISCONNECTED:
-                wifi->Dispatch(EVENT_LoseConnection{});
+            {
+                wifi_event_sta_disconnected_t* e = (wifi_event_sta_disconnected_t*)event_data;
+                wifi->Dispatch(EVENT_LoseConnection{.reason = (wifi_err_reason_t)e->reason});
                 break;
-
+            }
             case WIFI_EVENT_AP_START:
                 ESPARRAG_LOG_INFO("AP started successfully\n");
                 break;
@@ -44,8 +45,11 @@ void Wifi::eventHandler(void *event_handler_arg,
                 break;
 
             case WIFI_EVENT_AP_STADISCONNECTED:
-                wifi->Dispatch(EVENT_LoseConnection{});
+            {
+                wifi_event_sta_disconnected_t* e = (wifi_event_sta_disconnected_t*)event_data;
+                wifi->Dispatch(EVENT_LoseConnection{.reason = (wifi_err_reason_t)e->reason});
                 break;
+            }
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         wifi->Dispatch(EVENT_GotIP{});
@@ -156,77 +160,95 @@ void Wifi::on_entry(STATE_Connecting& state) {
 
 void Wifi::on_entry(STATE_Connected&) {
     ESPARRAG_LOG_INFO("wifi connected\n");
+
+    m_retry_count = 0;
 }
 
+
+using return_state_t = std::optional<WifiFSM::States>;
+
 //OFFLINE
-auto Wifi::on_event(STATE_Offline &, EVENT_APStart &) {
+return_state_t Wifi::on_event(STATE_Offline &, EVENT_APStart &) {
     ESPARRAG_LOG_INFO("state offline got AP Start event\n");
     ap_start();
     return STATE_AP{};
 }
 
-auto Wifi::on_event(STATE_Offline &, EVENT_StaConnect &event) {
+return_state_t Wifi::on_event(STATE_Offline &, EVENT_StaConnect &event) {
     ESPARRAG_LOG_INFO("state offline got StaConnect event\n");
     return STATE_Connecting{};
 }
 
 //AP
-auto Wifi::on_event(STATE_AP &, EVENT_APStart &) {
+return_state_t Wifi::on_event(STATE_AP &, EVENT_APStart &) {
     ESPARRAG_LOG_INFO("state AP got APStart event\n");
     return STATE_AP{};
 }
 
-auto Wifi::on_event(STATE_AP &, EVENT_APStop &) {
+return_state_t Wifi::on_event(STATE_AP &, EVENT_APStop &) {
     ESPARRAG_LOG_INFO("state AP got APStop event\n");
     return STATE_Offline{};
 }
 
-auto Wifi::on_event(STATE_AP &, EVENT_StaConnect &event) {
+return_state_t Wifi::on_event(STATE_AP &, EVENT_StaConnect &event) {
     ESPARRAG_LOG_INFO("state AP got StaConnect event\n");
     disconnect();
     return STATE_Connecting{};
 }
 
-auto Wifi::on_event(STATE_AP &, EVENT_UserConnected &) {
+return_state_t Wifi::on_event(STATE_AP &, EVENT_UserConnected &) {
     ESPARRAG_LOG_INFO("state AP got UserConnected event\n");
     return std::nullopt;
 }
 
 //Connecting
-auto Wifi::on_event(STATE_Connecting &, EVENT_LoseConnection &) {
+return_state_t Wifi::on_event(STATE_Connecting &, EVENT_LoseConnection &) {
     ESPARRAG_LOG_INFO("state Connecting got LoseConnection event\n");
+    m_retry_count++;
+
+    if (m_retry_count > MAX_RETRIES) {
+        ESPARRAG_LOG_ERROR("WIFI RETRT COUNT EXCEEDED %d. RESETTING", MAX_RETRIES);
+        esp_restart();
+    }
+
     return std::nullopt;
 }
 
-auto Wifi::on_event(STATE_Connecting &, EVENT_StaStart&) {
+return_state_t Wifi::on_event(STATE_Connecting &, EVENT_StaStart&) {
     ESPARRAG_LOG_INFO("state Connecting got StaStart event\n");
     sta_connect();
     return std::nullopt;
 }
 
-auto Wifi::on_event(STATE_Connecting &, EVENT_StaConnected &) {
+return_state_t Wifi::on_event(STATE_Connecting &, EVENT_StaConnected &) {
     ESPARRAG_LOG_INFO("state Connecting got connected event\n");
     return STATE_Connected{};
 }
 
-auto Wifi::on_event(STATE_Connecting &, EVENT_GotIP &) {
+return_state_t Wifi::on_event(STATE_Connecting &, EVENT_GotIP &) {
     ESPARRAG_LOG_INFO("state Connecting got GotIP event\n");
     return STATE_Connected{};
 }
 
 //Connected
-auto Wifi::on_event(STATE_Connected &, EVENT_LoseConnection &) {
+return_state_t Wifi::on_event(STATE_Connected &, EVENT_LoseConnection &event) {
     ESPARRAG_LOG_INFO("state Connected got LoseConnection event\n");
+
+    if (event.reason == WIFI_REASON_ASSOC_LEAVE) {
+        return STATE_Offline{};
+    }
+
+
     return STATE_Connecting{};
 }
 
-auto Wifi::on_event(STATE_Connected &, EVENT_Disconnect &) {
+return_state_t Wifi::on_event(STATE_Connected &, EVENT_Disconnect &) {
     ESPARRAG_LOG_INFO("state Connected got Disconnect event\n");
     disconnect();
     return STATE_Offline{};
 }
 
-auto Wifi::on_event(STATE_Connected &, EVENT_GotIP &) {
+return_state_t Wifi::on_event(STATE_Connected &, EVENT_GotIP &) {
     ESPARRAG_LOG_INFO("state Connected got GotIP event\n");
     return std::nullopt;
 }
