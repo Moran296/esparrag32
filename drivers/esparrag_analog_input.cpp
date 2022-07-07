@@ -27,8 +27,6 @@ AnalogInput::AnalogInput(adc_channel_t channel, adc_atten_t attenuation, uint16_
 
     err = adc1_config_channel_atten((adc1_channel_t)m_channel, m_attenuation);
     ESPARRAG_ASSERT(err == ESP_OK);
-    err = adc_gpio_init(ADC_UNIT_1, m_channel);
-    ESPARRAG_ASSERT(err == ESP_OK);
 }
 
 uint16_t AnalogInput::Read() const
