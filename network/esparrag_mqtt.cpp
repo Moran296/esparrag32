@@ -86,22 +86,10 @@ void MqttClient::On(const char *topic, mqtt_handler_callback callback)
     m_handlers.push_back(handler);
 }
 
-eResult MqttClient::Publish(const char *topic, const char *msg)
-{
-    return publish(constructFullTopic(topic), msg);
-}
-
 eResult MqttClient::Publish(const char *topic, cJSON *msg)
 {
-    memset(m_payload, 0, sizeof(m_payload));
-    bool printed = cJSON_PrintPreallocated(msg, m_payload, PAYLOAD_BUFFER_SIZE, false);
-    if (!printed)
-    {
-        ESPARRAG_LOG_ERROR("mqtt publish buffer too small");
-        return eResult::ERROR_INVALID_STATE;
-    }
-
-    return publish(constructFullTopic(topic), m_payload);
+    Dispatch(EVENT_PUBLISH{.topic = topic, .payload = msg});
+    return eResult::SUCCESS;
 }
 
 eResult MqttClient::TryConnect(const char* brokerIp) {
@@ -156,13 +144,13 @@ using return_state_t = MqttClient::return_state_t;
 // STATE_DISABLED
 
 return_state_t MqttClient::on_event(STATE_DISABLED &state, EVENT_CONNECT &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return connect(EVENT_CONNECT::m_brokerIp) == true ? return_state_t {STATE_CONNECTING{}} : std::nullopt;
 }
 
 return_state_t MqttClient::on_event(STATE_DISABLED &state, EVENT_BEFORE_CONNECT &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return STATE_CONNECTING{};
 }
@@ -170,19 +158,19 @@ return_state_t MqttClient::on_event(STATE_DISABLED &state, EVENT_BEFORE_CONNECT 
 // STATE_DISABLED
 
 return_state_t MqttClient::on_event(STATE_CONNECTING &state, EVENT_CONNECTED &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return STATE_CONNECTED{};
 }
 
 return_state_t MqttClient::on_event(STATE_CONNECTING &state, EVENT_DISCONNECTED &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return std::nullopt;
 }
 
 return_state_t MqttClient::on_event(STATE_CONNECTING &state, EVENT_ERROR &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return std::nullopt;
 }
@@ -190,37 +178,54 @@ return_state_t MqttClient::on_event(STATE_CONNECTING &state, EVENT_ERROR &event)
 // STATE_CONNECTED
 
 return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_SUBSCRIBE &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return std::nullopt;
 }
 
 return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_SUBSCRIBED &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return std::nullopt;
 }
 
+return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_PUBLISH &event) {
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
+
+    memset(m_payload, 0, sizeof(m_payload));
+    bool printed = cJSON_PrintPreallocated(event.payload, m_payload, PAYLOAD_BUFFER_SIZE, false);
+    if (!printed)
+    {
+        ESPARRAG_LOG_ERROR("mqtt publish buffer too small");
+    } else {
+        publish(constructFullTopic(event.topic), m_payload);
+    }
+
+
+    cJSON_Delete(event.payload);
+    return std::nullopt;
+}
+
 return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_PUBLISHED &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return std::nullopt;
 }
 
 return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_ERROR &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return STATE_CONNECTING{};
 }
 
 return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_DISCONNECTED &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
 
     return STATE_CONNECTING{};
 }
 
 return_state_t MqttClient::on_event(STATE_CONNECTED &state, EVENT_INCOMING_DATA &event) {
-    ESPARRAG_LOG_INFO("%s got %s", state.NAME, event.NAME);
+    ESPARRAG_LOG_DEBUG("%s got %s", state.NAME, event.NAME);
     handleData();
 
     return std::nullopt;

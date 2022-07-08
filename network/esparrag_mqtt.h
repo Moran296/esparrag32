@@ -52,6 +52,11 @@ struct EVENT_SUBSCRIBE{
 struct EVENT_SUBSCRIBED{
     static constexpr const char* NAME = "EVENT_SUBSCRIBED";
 };
+struct EVENT_PUBLISH{
+    static constexpr const char* NAME = "EVENT_PUBLISH";
+    const char* topic;
+    cJSON* payload;
+};
 struct EVENT_PUBLISHED{
     static constexpr const char* NAME = "EVENT_PUBLISHED";
 };
@@ -68,6 +73,7 @@ using Events = std::variant<EVENT_BEFORE_CONNECT,
                                EVENT_DISCONNECTED,
                                EVENT_SUBSCRIBE,
                                EVENT_SUBSCRIBED,
+                               EVENT_PUBLISH,
                                EVENT_PUBLISHED,
                                EVENT_ERROR,
                                EVENT_INCOMING_DATA>;
@@ -95,7 +101,6 @@ public:
     void Init();
     void On(const char *topic, mqtt_handler_callback callback);
     eResult Publish(const char *topic, cJSON *msg);
-    eResult Publish(const char *topic, const char *msg);
     eResult TryConnect(const char* brokerIp);
 
 
@@ -114,6 +119,7 @@ public:
 
     return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_SUBSCRIBE &);
     return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_SUBSCRIBED &);
+    return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_PUBLISH &);
     return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_PUBLISHED &);
     return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_ERROR &);
     return_state_t on_event(MqttFSM::STATE_CONNECTED &, MqttFSM::EVENT_DISCONNECTED &);
