@@ -119,7 +119,7 @@ class FsmTask
 
 public:
     // Create the FSM Task
-    FsmTask(uint32_t taskSize, uint8_t priority, const char *name, uint8_t eventQueueSize = EVENT_QUEUE_DEFAULT_SIZE);
+    FsmTask(uint32_t taskSize, uint8_t priority, const char *name, uint8_t eventQueueSize = EVENT_QUEUE_DEFAULT_SIZE, BaseType_t xCoreID = tskNO_AFFINITY);
 
     // Start the FSM Task
     void Start();
@@ -167,10 +167,10 @@ private:
 
 // CONSTRUCTOR
 template <typename Derived, typename StateVariant, typename EventVariant>
-FsmTask<Derived, StateVariant, EventVariant>::FsmTask(uint32_t taskSize, uint8_t priority, const char *name, uint8_t eventQueueSize)
+FsmTask<Derived, StateVariant, EventVariant>::FsmTask(uint32_t taskSize, uint8_t priority, const char *name, uint8_t eventQueueSize, BaseType_t xCoreID)
 {
     m_eventQueue = xQueueCreate(eventQueueSize, sizeof(EventVariant));
-    configASSERT(pdPASS == xTaskCreatePinnedToCore(s_mainTaskFunc, name, taskSize, this, priority, &m_task, tskNO_AFFINITY));
+    configASSERT(pdPASS == xTaskCreatePinnedToCore(s_mainTaskFunc, name, taskSize, this, priority, &m_task, xCoreID));
     configASSERT(m_eventQueue != nullptr);
     configASSERT(m_task != nullptr);
 }
