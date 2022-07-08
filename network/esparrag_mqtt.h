@@ -89,6 +89,10 @@ public:
 
     static constexpr int TOPIC_BUFFER_SIZE = 100;
     static constexpr int PAYLOAD_BUFFER_SIZE = 4096;
+    static constexpr int MQTT_TASK_PRIORITY = 3;
+    static constexpr int MQTT_TASK_STACK_SIZE = 4096;
+    static constexpr const char * MQTT_TASK_NAME = "mqttTask@esparrag";
+    static constexpr int MQTT_TASK_QUEUE_LENGTH = 80;
     struct mqtt_event_handler_t
     {
         mqtt_handler_callback cb;

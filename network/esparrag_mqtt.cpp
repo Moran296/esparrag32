@@ -61,7 +61,7 @@ void MqttClient::mqttEventHandler(void *arg, esp_event_base_t event_base, int32_
 //===============================PUBLIC METHODS ==================================================
 //===============================================================================================
 
-MqttClient::MqttClient() : FsmTask(8000, 3, "mqttTask@esparrag") {}
+MqttClient::MqttClient() : FsmTask(MQTT_TASK_STACK_SIZE, MQTT_TASK_PRIORITY, MQTT_TASK_NAME, MQTT_TASK_QUEUE_LENGTH) {}
 
 void MqttClient::Init()
 {
